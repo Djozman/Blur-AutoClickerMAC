@@ -24,9 +24,9 @@ Each entry is a dict with these keys:
   default      : the default value
   widget_type  : "spinbox" | "combobox" | "checkbox" | "groupbox" | "keysequence"
 """
+import os
 from pathlib import Path
 from configparser import ConfigParser
-import os
 
 CONFIG_DIR = Path.home() / "AppData" / "Roaming" / "blur009" / "autoclicker"
 CONFIG_FILE = str(CONFIG_DIR / "config.ini")
@@ -37,8 +37,6 @@ def ensure_config_dir():
     if not CONFIG_DIR.exists():
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-
-CONFIG_SECTION = "Settings"
 # ---------------------------------------------------------------------------
 # The registry — one row per setting
 # ---------------------------------------------------------------------------
@@ -59,14 +57,14 @@ SETTINGS_REGISTRY = [
      ("position_options_checkbox",         "Position_Check",         False,      "groupbox"),
      ("click_offset_input",                "Offset",                 15,         "spinbox"),
      ("click_offset_checkbox",             "Offset_Check",           True,      "checkbox"),
-     ("telemetry_checkbox",                "Telemetry",              True,       "checkbox"),
+     ("telemetry_checkbox",                "Telemetry",              False,       "checkbox"),
      ("speed_variation_checkbox",          "Speed_Variation_Check",  True,      "checkbox"),
      ("click_limit_checkbox",              "Click_Limit_Check",      False,      "checkbox"),
      ("time_limit_checkbox",               "Time_Limit_Check",       False,      "checkbox"),
      ("advanced_options_checkbox",         "Advanced_Options",       False,      "checkbox"),
      ("click_offset_chance_input",         "Offset_Chance",          80,         "spinbox"),
      ("click_offset_chance_input_checkbox","Offset_Chance_Check",    True,      "checkbox"),
-     ("click_offset_smoothing_input_checkbox","Smoothing_Check",     True,      "checkbox"),
+     ("click_offset_smoothing_checkbox",    "Smoothing_Check",       True,      "checkbox"),
      # keysequence and tab index are handled separately below
 ]
 # fmt: on
@@ -203,3 +201,21 @@ def reset_defaults(ui_objects, log=None):
 def get_debug_mode(config: ConfigParser) -> bool:
     """Convenience: read Debug_Mode from an already-loaded config."""
     return config.getboolean(CONFIG_SECTION, "Debug_Mode", fallback=False)
+
+
+def is_first_launch(config: ConfigParser) -> bool:
+    """Returns True if this is the first time the app has been launched."""
+    if not os.path.exists(CONFIG_FILE):
+        return True
+    config.read(CONFIG_FILE)
+    return not config.getboolean(CONFIG_SECTION, "Has_Launched", fallback=False)
+
+
+def mark_launched(config: ConfigParser):
+    """Call this after showing the first-launch popup."""
+    ensure_config_dir()
+    if CONFIG_SECTION not in config:
+        config[CONFIG_SECTION] = {}
+    config[CONFIG_SECTION]["Has_Launched"] = "True"
+    with open(CONFIG_FILE, "w") as f:
+        config.write(f)

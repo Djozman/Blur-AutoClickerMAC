@@ -21,12 +21,12 @@ from configparser import ConfigParser
 from datetime import datetime
 from os.path import exists
 from PySide6.QtCore import QTimer
-from PySide6.QtGui import QCursor
+from PySide6.QtGui import QCursor, Qt
 from PySide6.QtWidgets import (QApplication, QKeySequenceEdit, QCheckBox, QComboBox,
                                QPushButton, QSpinBox, QLabel, QMainWindow, QGroupBox, QMessageBox,
                                QTabWidget)
-from src.Private.telemetry_url import TELEMETRY_URL, SUPABASE_URL, SUPABASE_KEY
-from src.Py.settings_manager import load_settings, save_settings, reset_defaults, get_debug_mode
+from src.Private.Supabase import SUPABASE_URL, SUPABASE_KEY
+from src.Py.settings_manager import load_settings, save_settings, reset_defaults, get_debug_mode, CONFIG_FILE, ensure_config_dir, CONFIG_DIR, is_first_launch, mark_launched
 from src.Py import go_translation
 from src.Py import update_checker
 from src.Py import hotkey_manager
@@ -34,7 +34,7 @@ from src.Py import telemetry
 from UI.ui_main_window import Ui_BlurAutoClicker as ui_main_window
 
 # --- Constants ---
-CURRENT_VERSION = "v2.0.0"
+CURRENT_VERSION = "v2.1.0"
 DEBUG_MODE = True
 
 os.system("")
@@ -114,6 +114,7 @@ class UIWidgets:
         # Other
         self.btn_reset                           = f(QPushButton,    "ResetSettingsButton")
         self.telemetry_checkbox                  = f(QCheckBox,      "TelemetryCheckBox")
+        self.telemetry_popup                     = f(QCheckBox,      "TelemetryPopup")
 
         # Labels
         self.version_label                       = f(QLabel,         "VersionLabel")
@@ -135,16 +136,64 @@ if __name__ == "__main__":
     # -----------------------------------------------------------------------
     # Load settings
     # -----------------------------------------------------------------------
+    # TODO: FIX THIS SETTINGS MESS.  Telemetry Popup doesnt work & i have no clue whats going on with the keybind settings.  Refactor this whole thing.
     shortcut_string = load_settings(
         ui_widgets, config, log=lambda m: log(f"[{current_time()}] {m}"))
     keybind_hotkey = shortcut_string.lower().replace("meta", "win")
     if exists("config.ini"):
         DEBUG_MODE = get_debug_mode(config)
 
+    if not CONFIG_DIR.exists():
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
     for attr in vars(ui_widgets).values():
         if isinstance(attr, (QCheckBox, QGroupBox)):
             attr.toggled.emit(attr.isChecked())
 
+    def show_telemetry_popup():
+        popup = QMessageBox()
+        popup.setWindowTitle("Anonymous Telemetry Collection")
+        popup.setText(
+            "Blur Auto Clicker collects anonymous usage data to help improve the app.\n\n"
+            "No personal information is collected. You can opt out at any time in settings."
+        )
+        popup.setIcon(QMessageBox.Icon.Information)
+        popup.setStandardButtons(QMessageBox.StandardButton.Ok)
+
+        accept_telemetry_checkbox = QCheckBox(
+            "I accept the anonymous telemetry"
+        )
+        popup.setCheckBox(accept_telemetry_checkbox)
+
+        ok_button = popup.button(QMessageBox.StandardButton.Ok)
+        ok_button.setEnabled(False)
+
+        countdown = [5]
+        ok_button.setText(f"OK ({countdown[0]})")
+        timer = QTimer(popup)
+        timer.setInterval(1000)
+
+        def update_ok_button():
+            countdown[0] -= 1
+            if countdown[0] > 0:
+                ok_button.setText(f"OK ({countdown[0]})")
+            else:
+                timer.stop()
+                ok_button.setText("OK")
+                ok_button.setEnabled(True)
+
+        timer.timeout.connect(update_ok_button)
+        timer.start()
+
+        popup.exec()
+        if accept_telemetry_checkbox.isChecked():
+            ui_widgets.telemetry_checkbox.setChecked(True)
+        else:
+            ui_widgets.telemetry_checkbox.setChecked(False)
+
+    if is_first_launch(config):
+        show_telemetry_popup()
+        mark_launched(config)
     # -----------------------------------------------------------------------
     # Window / UI
     # -----------------------------------------------------------------------
@@ -174,11 +223,11 @@ if __name__ == "__main__":
         total_elapsed = _session["elapsed"]
         avg_cpu = sum(_session["cpu_samples"]) / \
             len(_session["cpu_samples"]) if _session["cpu_samples"] else 0.0
-        log(f"[{current_time()}] --- Session Summary ---")
+        log(f"[{current_time()}] ---- Session Summary ----")
         log(f"[{current_time()}] Total Clicks : {total_clicks}")
         log(f"[{current_time()}] Total Time   : {total_elapsed:.2f}s")
         log(f"[{current_time()}] Total Avg CPU: {avg_cpu:.1f}%")
-        log(f"[{current_time()}] -----------------------")
+        log(f"[{current_time()}] -------------------------")
 
     def send_stats(clicks, elapsed, avg_cpu):
         for attempt in range(3):
@@ -392,9 +441,8 @@ if __name__ == "__main__":
     # -----------------------------------------------------------------------
     # Wire up signals
     # -----------------------------------------------------------------------
-
-    ui_widgets.version_label.setText(CURRENT_VERSION)
     ui_widgets.update_status_label.setVisible(False)
+    ui_widgets.version_label.setText(CURRENT_VERSION)
     ui_widgets.btn_reset.clicked.connect(lambda: reset_defaults(
         ui_widgets, log=lambda m: log(f"[{current_time()}] {m}")))
     ui_widgets.btn_reset.clicked.connect(lambda: ui.Tabs.setCurrentIndex(0))
@@ -412,7 +460,14 @@ if __name__ == "__main__":
     def log_func(m): return log(f"[{current_time()}] {m}")
 
     update_checker.initialize(ui_widgets, log_func, CURRENT_VERSION)
-    telemetry.initialize(ui_widgets, log_func, CURRENT_VERSION, TELEMETRY_URL)
+
+    update_checker.check_for_updates()
+    if update_checker.get_update_available():
+        ui_widgets.update_status_label.setVisible(True)
+        ui_widgets.update_status_label.setText(
+            '<html><head/><body><p><span style=" color:#1aff22;">Updates Available! Check my GitHub (Blur009)</span></p></body></html>'
+        )
+    telemetry.initialize(ui_widgets, log_func, CURRENT_VERSION)
     hotkey_manager.initialize(ui_widgets, log_func)
     hotkey_manager.set_keybind(keybind_hotkey)
     hotkey_manager.set_keybind_mode()
@@ -423,7 +478,7 @@ if __name__ == "__main__":
 
     def exit_handler():
         t = None
-        if TELEMETRY_URL and ui_widgets.telemetry_checkbox.isChecked():
+        if SUPABASE_URL and ui_widgets.telemetry_checkbox.isChecked():
             t = threading.Thread(target=telemetry.send_telemetry_data)
             t.start()
         save_settings(ui_widgets, config, keybind_hotkey=hotkey_manager.get_keybind(),

@@ -11,6 +11,7 @@
  *
 """
 import requests
+from PySide6.QtCore import QTimer
 
 # Module-level state
 _ui_widgets = None
@@ -70,23 +71,23 @@ def is_update_available(remote_version, local_version):
     return False
 
 
-def perform_startup_update_check():
-    # Check for updates on startup and update UI.
-    if not _ui_widgets or not _log_func or not _current_version:
-        return
+_update_available = False
 
-    _log_func("Checking for updates on startup...")
+
+def check_for_updates():
+    global _update_available
+    if not _current_version:
+        return
+    if _log_func:
+        _log_func("Checking for updates on startup...")
     github_version = get_newest_version()
     if github_version:
-        if is_update_available(github_version, _current_version):
-            _log_func("UPDATE AVAILABLE!")
-            _ui_widgets.update_status_label.setVisible(True)
-            _ui_widgets.update_status_label.setText(
-                '<html><head/><body><p><span style=" color:#1aff22;">'
-                'Updates Available! Check my GitHub (Blur009)</span></p></body></html>'
-            )
-        else:
-            _log_func("You are on the latest version.")
-            _ui_widgets.update_status_label.setText("No Updates Found")
-    else:
-        _log_func("Could not check versions.")
+        _update_available = is_update_available(
+            github_version, _current_version)
+        if _log_func:
+            _log_func(
+                "UPDATE AVAILABLE!" if _update_available else "You are on the latest version.")
+
+
+def get_update_available():
+    return _update_available

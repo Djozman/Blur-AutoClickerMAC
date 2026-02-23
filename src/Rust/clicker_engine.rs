@@ -198,7 +198,6 @@ fn smooth_move(
     let sign = |b: bool| if b { 1.0f64 } else { -1.0 };
     let o1 = (rng.next_f64() * 0.3 + 0.15) * distance * sign(rng.next_f64() >= 0.5);
     let o2 = (rng.next_f64() * 0.3 + 0.15) * distance * sign(rng.next_f64() >= 0.5);
-
     let cp1x = sx + dx * 0.33 + perp_x * o1;
     let cp1y = sy + dy * 0.33 + perp_y * o1;
     let cp2x = sx + dx * 0.66 + perp_x * o2;
