@@ -35,6 +35,10 @@
   --font-weight-hv: 800;
 
   --divider-color: rgba(255, 255, 255, 0.25);
+
+  --update-banner-bg: hsl(42, 50%, 23%);
+  --update-banner-text-fg: hsl(0, 0%, 100%);
+  --update-banner-text-bg: hsl(0, 0%, 80%);
 }
 
 [data-theme="light"] {
@@ -63,6 +67,10 @@
   --font-weight-hv: 800;
 
   --divider-color: rgba(0, 0, 0, 0.18);
+
+  --update-banner-bg: rgba(254, 188, 46, 0.747);
+  --update-banner-text-fg: hsl(0, 0%, 0%);
+  --update-banner-text-bg: hsl(0, 0%, 15%);
 }
 
 * {

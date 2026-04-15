@@ -1,8 +1,11 @@
 # v3.4.0 - 15.05.2026 (d.m.y)
 ## ❇️ New:
-- Added Light Mode
-- Added support for Mouse Buttons
+- Added Light Mode with Light / Dark toggle in the settings
+- Added support for Mouse Buttons and Numpads
 ## 🔹 Changed:
+- Hotkey recognition should now be more reliable.
+- Adjusted fonts and colors for light mode
+- Edge / Corner stop now supports multiple monitors
 - Added vertical bars to Simple mode Hold and Randomization fields for consistency.
 ## 🔺 Fix:
 - Fixed Time Limit hover card being split in 2

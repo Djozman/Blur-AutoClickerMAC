@@ -66,7 +66,8 @@ export default function UpdateBanner({
     <div className="update-banner">
       <span className="update-banner-text-old-version">v{currentVersion}</span>
       <span className="update-banner-text">to</span>
-      <span className="update-banner-text-new-version">v{latestVersion}</span>
+      {/* does not need v for version, gets it from gitHub ↓  */}
+      <span className="update-banner-text-new-version">{latestVersion}</span>
       {statusText && (
         <span className="update-banner-status" data-stage={stage}>
           {statusText}
