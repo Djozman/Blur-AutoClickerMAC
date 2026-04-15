@@ -127,7 +127,7 @@ pub fn current_monitor_rects() -> Option<Vec<VirtualScreenRect>> {
         return current_virtual_screen_rect().map(|screen| vec![screen]);
     }
 
-    monitors.sort_by_key(|monitor| (monitor.top, monitor.left));
+    monitors.sort_by_key(|monitor: &VirtualScreenRect| (monitor.top, monitor.left));
     Some(monitors)
 }
 
