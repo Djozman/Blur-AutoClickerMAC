@@ -350,11 +350,11 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 .adv-card-title {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 14px;
   font-weight: var(--font-weight-hv);
   color: var(--text-primary);
-  letter-spacing: -2%;
+  letter-spacing: -0.02em;
   min-width: 0;
 }
 
@@ -368,12 +368,12 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 .adv-desc {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 11px;
   font-weight: var(--font-weight-li);
   color: var(--text-dim);
   line-height: 1.5;
-  letter-spacing: 2%;
+  letter-spacing: 0.02em;
 }
 
 .adv-row {
@@ -383,7 +383,7 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 .adv-label {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 14px;
   font-weight: var(--font-weight-hv);
   color: var(--text-muted);
@@ -391,7 +391,7 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 .adv-label-sm {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 12px;
   font-weight: var(--font-weight-hv);
   color: var(--text-dim);
@@ -418,24 +418,24 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 .adv-number {
-  font-family: 'DMSans', sans-serif;
-  font-size: 1px;
+  font-family: var(--font-family-base);
+  font-size: 14px;
   font-weight: var(--font-weight-hv);
   color: var(--text-primary);
 }
 
 .adv-number-sm {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 14px;
   font-weight: var(--font-weight-hv);
   color: var(--text-primary);
 }
 
 .adv-unit {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 10px;
   font-weight: var(--font-weight-hv);
-  letter-spacing: 5%;
+  letter-spacing: 0.05em;
   color: var(--text-dim);
   margin-left: 1px;
 }
@@ -446,12 +446,12 @@ input[type="number"]::-webkit-outer-spin-button {
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  padding: 2px 0px;
+  padding: 2px 0;
   min-width: 80px;
 }
 
 .adv-textbox-text {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 16px;
   line-height: 18px;
   padding: 2px 10px;
@@ -478,10 +478,10 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 .adv-toggle-btn {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 4%;
+  letter-spacing: 0.04em;
   padding: 4px 0;
   min-width: 35px;
   text-align: center;
@@ -574,7 +574,7 @@ input[type="number"]::-webkit-outer-spin-button {
 .adv-edge-bar-right  { right: 0; top: 0px; bottom: 0px; width: 2px; }
 
 .adv-pick-btn {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 11px;
   font-weight: var(--font-weight-hv);
   padding: 4px 8px;
@@ -631,7 +631,7 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 .disabled-label {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;

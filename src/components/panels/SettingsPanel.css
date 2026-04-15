@@ -38,11 +38,11 @@
 }
 
 .settings-label {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 16px;
   font-weight: var(--font-weight-md);
   letter-spacing: -0.02em;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .settings-label-group {
@@ -54,14 +54,14 @@
 }
 
 .settings-sublabel {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 12px;
   font-weight: var(--font-weight-li);
   color: var(--text-muted);
 }
 
 .settings-value {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 14px;
   font-weight: var(--font-weight-md);
   color: var(--text-muted);
@@ -82,7 +82,7 @@
 }
 
 .settings-seg-btn {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 14px;
   font-weight: var(--font-weight-md);
   padding: 5px 12px;
@@ -109,7 +109,7 @@
 }
 
 .settings-btn-danger {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 14px;
   font-weight: var(--font-weight-md);
   padding: 5px 14px;
@@ -182,7 +182,7 @@
 .social-icon:hover {
   color: var(--text-primary);
   background: var(--bg-elevated);
-  border-color: var(--border-default);
+  border-color: var(--border-focus);
 }
 
 .social-icon--youtube:hover {

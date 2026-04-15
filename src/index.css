@@ -6,6 +6,8 @@
 }
 
 :root {
+  --font-family-base: 'DMSans', sans-serif;
+
   --bg-base:       rgb(18, 18, 18);
   --bg-surface:    hsl(0, 0%, 10%);
   --bg-elevated:   hsl(0, 0%, 15%);
@@ -39,6 +41,8 @@
   --update-banner-bg: hsl(42, 50%, 23%);
   --update-banner-text-fg: hsl(0, 0%, 100%);
   --update-banner-text-bg: hsl(0, 0%, 80%);
+  --status-success: hsl(129, 77%, 60%);
+  --status-error: hsl(4, 100%, 71%);
 }
 
 [data-theme="light"] {
@@ -71,6 +75,8 @@
   --update-banner-bg: rgba(254, 188, 46, 0.747);
   --update-banner-text-fg: hsl(0, 0%, 0%);
   --update-banner-text-bg: hsl(0, 0%, 15%);
+  --status-success: hsl(129, 77%, 24%);
+  --status-error: hsl(4, 100%, 36%);
 }
 
 * {
@@ -82,7 +88,7 @@
 
 body {
   color: var(--text-primary);
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 16px;
   overflow: hidden;
   user-select: none;
@@ -103,7 +109,7 @@ body {
 
 .panel-area {
   flex: 1;
-  padding: 20px 20px 20px 20px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   overflow: hidden;

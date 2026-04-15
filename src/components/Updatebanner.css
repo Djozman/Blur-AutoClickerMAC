@@ -11,26 +11,26 @@
 }
 
 .update-banner-text {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 12px;
   font-weight: 500;
   color: var(--update-banner-text-bg);
 }
 .update-banner-text-new-version {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 12px;
   font-weight: 500;
   color: var(--update-banner-text-fg);
 }
 .update-banner-text-old-version {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 12px;
   font-weight: 500;
   color: var(--update-banner-text-fg);
 }
 
 .update-banner-btn {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 11px;
   font-weight: 600;
   color: var(--update-banner-text-bg);
@@ -53,16 +53,16 @@
 }
 
 .update-banner-status {
-  font-family: 'DMSans', sans-serif;
+  font-family: var(--font-family-base);
   font-size: 11px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.82);
 }
 
 .update-banner-status[data-stage="error"] {
-  color: var(--color-red-400);
+  color: var(--status-error);
 }
 
 .update-banner-status[data-stage="restart-required"] {
-  color: var(--color-lime-500);
+  color: var(--status-success);
 }
