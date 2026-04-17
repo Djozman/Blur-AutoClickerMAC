@@ -15,6 +15,19 @@ pub const VK_SCROLL_UP_PSEUDO: i32 = -1;
 pub const VK_SCROLL_DOWN_PSEUDO: i32 = -2;
 pub const VK_NUMPAD_ENTER_PSEUDO: i32 = -3;
 
+// Punctuation VK constants (chosen to not clash with existing VKs)
+pub const VK_SEMICOLON:    i32 = 0x01BA;
+pub const VK_QUOTE:        i32 = 0x01DE;
+pub const VK_GRAVE:        i32 = 0x01C0;
+pub const VK_COMMA:        i32 = 0x01BC;
+pub const VK_PERIOD:       i32 = 0x01BE;
+pub const VK_SLASH:        i32 = 0x01BF;
+pub const VK_BACKSLASH:    i32 = 0x01DC;
+pub const VK_LBRACKET:     i32 = 0x01DB;
+pub const VK_RBRACKET:     i32 = 0x01DD;
+pub const VK_MINUS:        i32 = 0x01BD;
+pub const VK_EQUALS:       i32 = 0x01BB;
+
 const SCROLL_WINDOW_MS: u64 = 200;
 
 static SCROLL_UP_AT: AtomicU64 = AtomicU64::new(0);
@@ -109,6 +122,7 @@ fn is_mac_keycode_down(keycode: u16) -> bool {
 
 fn vk_to_mac_keycode(vk: i32) -> Option<u16> {
     const MAC_KEYCODES: &[(i32, u16)] = &[
+        // Letters
         (b'A' as i32, 0x00), (b'B' as i32, 0x0B), (b'C' as i32, 0x08),
         (b'D' as i32, 0x02), (b'E' as i32, 0x0E), (b'F' as i32, 0x03),
         (b'G' as i32, 0x05), (b'H' as i32, 0x04), (b'I' as i32, 0x22),
@@ -118,22 +132,39 @@ fn vk_to_mac_keycode(vk: i32) -> Option<u16> {
         (b'S' as i32, 0x01), (b'T' as i32, 0x11), (b'U' as i32, 0x20),
         (b'V' as i32, 0x09), (b'W' as i32, 0x0D), (b'X' as i32, 0x07),
         (b'Y' as i32, 0x10), (b'Z' as i32, 0x06),
+        // Digits
         (b'0' as i32, 0x1D), (b'1' as i32, 0x12), (b'2' as i32, 0x13),
         (b'3' as i32, 0x14), (b'4' as i32, 0x15), (b'5' as i32, 0x17),
         (b'6' as i32, 0x16), (b'7' as i32, 0x1A), (b'8' as i32, 0x1C),
         (b'9' as i32, 0x19),
+        // F-keys
         (0x70, 0x7A), (0x71, 0x78), (0x72, 0x63), (0x73, 0x76),
         (0x74, 0x60), (0x75, 0x61), (0x76, 0x62), (0x77, 0x64),
         (0x78, 0x65), (0x79, 0x6D), (0x7A, 0x67), (0x7B, 0x6F),
+        // Special keys
         (0x1B, 0x35), (0x0D, 0x24), (0x20, 0x31), (0x09, 0x30),
         (0x08, 0x33), (0x2E, 0x75), (0x23, 0x73), (0x22, 0x77),
         (0x21, 0x74), (0x26, 0x7E), (0x28, 0x7D), (0x25, 0x7B),
         (0x27, 0x7C),
+        // Numpad
         (0x60, 0x52), (0x61, 0x53), (0x62, 0x54), (0x63, 0x55),
         (0x64, 0x56), (0x65, 0x57), (0x66, 0x58), (0x67, 0x59),
         (0x68, 0x5B), (0x69, 0x5C), (0x6B, 0x4C),
+        // Modifiers
         (0x11, 0x3B), (0x12, 0x3A), (0x10, 0x38),
         (0x5B, 0x37), (0x5C, 0x36),
+        // Punctuation
+        (VK_SEMICOLON,  0x29),
+        (VK_QUOTE,      0x27),
+        (VK_GRAVE,      0x32),
+        (VK_COMMA,      0x2B),
+        (VK_PERIOD,     0x2F),
+        (VK_SLASH,      0x2C),
+        (VK_BACKSLASH,  0x2A),
+        (VK_LBRACKET,   0x21),
+        (VK_RBRACKET,   0x1E),
+        (VK_MINUS,      0x1B),
+        (VK_EQUALS,     0x18),
     ];
     MAC_KEYCODES.iter().find(|&&(w, _)| w == vk).map(|&(_, m)| m)
 }
@@ -336,6 +367,18 @@ pub fn parse_hotkey_main_key(token: &str, original_hotkey: &str) -> Result<(i32,
         "left" => Some((0x25, String::from("left"))),
         "right" => Some((0x27, String::from("right"))),
         "esc" | "escape" => Some((0x1B, String::from("escape"))),
+        // Punctuation by name
+        "semicolon" | ";" => Some((VK_SEMICOLON, String::from(";"))),
+        "quote" | "apostrophe" | "'" => Some((VK_QUOTE, String::from("'"))),
+        "grave" | "backtick" | "`" => Some((VK_GRAVE, String::from("`"))),
+        "comma" | "," => Some((VK_COMMA, String::from(","))),
+        "period" | "." => Some((VK_PERIOD, String::from("." ))),
+        "slash" | "/" => Some((VK_SLASH, String::from("/"))),
+        "backslash" | "\\" => Some((VK_BACKSLASH, String::from("\\"))),
+        "lbracket" | "[" => Some((VK_LBRACKET, String::from("["))),
+        "rbracket" | "]" => Some((VK_RBRACKET, String::from("]"))),
+        "minus" | "-" => Some((VK_MINUS, String::from("-"))),
+        "equals" | "=" => Some((VK_EQUALS, String::from("="))),
         _ => None,
     };
     if let Some(b) = mapped { return Ok(b); }
@@ -349,8 +392,10 @@ pub fn parse_hotkey_main_key(token: &str, original_hotkey: &str) -> Result<(i32,
     if let Some(d) = lower.strip_prefix("digit") { if d.len() == 1 { return parse_hotkey_main_key(d, original_hotkey); } }
     if lower.len() == 1 {
         let ch = lower.as_bytes()[0];
-        if ch.is_ascii_lowercase() { return Ok((ch.to_ascii_uppercase() as i32, lower)); }
-        if ch.is_ascii_digit() { return Ok((ch as i32, lower)); }
+        if ch.is_ascii_alphanumeric() { 
+            if ch.is_ascii_lowercase() { return Ok((ch.to_ascii_uppercase() as i32, lower)); }
+            if ch.is_ascii_digit() { return Ok((ch as i32, lower)); }
+        }
     }
     Err(format!("Couldn't recognize '{token}' as a valid key in '{original_hotkey}'"))
 }
@@ -374,6 +419,20 @@ mod tests {
             let hotkey = format!("ctrl+shift+{token}");
             let binding = parse_hotkey_binding(&hotkey).expect("token should parse");
             assert_eq!(format_hotkey_binding(&binding), hotkey);
+        }
+    }
+    #[test]
+    fn punctuation_keys_parse() {
+        for token in [";", "'", "`", ",", ".", "/", "\\", "[", "]", "-", "="] {
+            let hotkey = format!("ctrl+{token}");
+            parse_hotkey_binding(&hotkey).expect(&format!("'{}' should parse", token));
+        }
+    }
+    #[test]
+    fn punctuation_by_name_parse() {
+        for token in ["semicolon", "quote", "grave", "comma", "period", "slash", "backslash", "lbracket", "rbracket", "minus", "equals"] {
+            let hotkey = format!("ctrl+{token}");
+            parse_hotkey_binding(&hotkey).expect(&format!("'{}' should parse", token));
         }
     }
     #[test]
