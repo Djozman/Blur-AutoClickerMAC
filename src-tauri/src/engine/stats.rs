@@ -8,6 +8,10 @@ static STATS_LOCK: Mutex<()> = Mutex::new(());
 
 const MAX_NORMAL_RUNS: usize = 100;
 
+/// Any avg_cpu at or above this threshold is treated as a measurement error
+/// (produced by the old wall-clock bug) and discarded.
+const CPU_SANITY_MAX: f64 = 99.0;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CumulativeStats {
@@ -34,6 +38,16 @@ fn stats_file_path() -> PathBuf {
 
 fn round2(v: f64) -> f64 {
     (v * 100.0).round() / 100.0
+}
+
+/// Sanitize a raw avg_cpu value loaded from disk.
+/// Returns -1.0 if the value looks like a measurement error.
+fn sanitize_cpu(v: f64) -> f64 {
+    if v < 0.0 || v >= CPU_SANITY_MAX {
+        -1.0
+    } else {
+        v
+    }
 }
 
 // -- CSV read/write --
@@ -64,7 +78,7 @@ fn read_all_runs() -> Result<Vec<RunRecord>, String> {
         let id = parts[0].parse::<u64>().unwrap_or(0);
         let clicks = parts[1].parse::<i64>().unwrap_or(0);
         let time_secs = parts[2].parse::<f64>().unwrap_or(0.0);
-        let avg_cpu = parts[3].parse::<f64>().unwrap_or(-1.0);
+        let raw_cpu = parts[3].parse::<f64>().unwrap_or(-1.0);
         let run_count = parts
             .get(4)
             .map(|s| s.trim().parse::<u32>().unwrap_or(1))
@@ -74,7 +88,7 @@ fn read_all_runs() -> Result<Vec<RunRecord>, String> {
             id,
             clicks,
             time_secs,
-            avg_cpu,
+            avg_cpu: sanitize_cpu(raw_cpu),
             runs: run_count,
         };
 

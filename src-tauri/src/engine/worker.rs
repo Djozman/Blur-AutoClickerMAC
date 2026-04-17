@@ -45,16 +45,18 @@ impl RunControl {
     }
 }
 
+/// Returns CPU time (user + sys) for the whole process in seconds.
+/// Falls back to -1.0 on error.
 fn cpu_time_secs() -> f64 {
-    #[cfg(target_os = "macos")]
-    {
-        unsafe {
-            let mut usage = std::mem::zeroed::<libc::rusage>();
-            if libc::getrusage(libc::RUSAGE_THREAD, &mut usage) == 0 {
-                let user = usage.ru_utime.tv_sec as f64 + usage.ru_utime.tv_usec as f64 / 1_000_000.0;
-                let sys  = usage.ru_stime.tv_sec as f64 + usage.ru_stime.tv_usec as f64 / 1_000_000.0;
-                return user + sys;
-            }
+    unsafe {
+        let mut usage = std::mem::zeroed::<libc::rusage>();
+        // RUSAGE_SELF works reliably on macOS; RUSAGE_THREAD is not portable
+        if libc::getrusage(libc::RUSAGE_SELF, &mut usage) == 0 {
+            let user = usage.ru_utime.tv_sec as f64
+                + usage.ru_utime.tv_usec as f64 / 1_000_000.0;
+            let sys = usage.ru_stime.tv_sec as f64
+                + usage.ru_stime.tv_usec as f64 / 1_000_000.0;
+            return user + sys;
         }
     }
     -1.0
@@ -295,7 +297,7 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
 
     let elapsed_secs = start_time.elapsed().as_secs_f64();
     let cpu_time_end = cpu_time_secs();
-    let avg_cpu: f64 = if cpu_time_start < 0.0 || cpu_time_end < 0.0 || elapsed_secs < 0.001 {
+    let avg_cpu: f64 = if cpu_time_start < 0.0 || cpu_time_end < 0.0 || elapsed_secs < 0.1 {
         -1.0
     } else {
         let cpu_used = (cpu_time_end - cpu_time_start).max(0.0);
