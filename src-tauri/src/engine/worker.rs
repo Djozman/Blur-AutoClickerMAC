@@ -45,6 +45,21 @@ impl RunControl {
     }
 }
 
+fn cpu_time_secs() -> f64 {
+    #[cfg(target_os = "macos")]
+    {
+        unsafe {
+            let mut usage = std::mem::zeroed::<libc::rusage>();
+            if libc::getrusage(libc::RUSAGE_THREAD, &mut usage) == 0 {
+                let user = usage.ru_utime.tv_sec as f64 + usage.ru_utime.tv_usec as f64 / 1_000_000.0;
+                let sys  = usage.ru_stime.tv_sec as f64 + usage.ru_stime.tv_usec as f64 / 1_000_000.0;
+                return user + sys;
+            }
+        }
+    }
+    -1.0
+}
+
 pub fn start_clicker_inner(app: &AppHandle) -> Result<ClickerStatusPayload, String> {
     let state = app.state::<ClickerState>();
     if state.running.load(Ordering::SeqCst) {
@@ -65,7 +80,6 @@ pub fn start_clicker_inner(app: &AppHandle) -> Result<ClickerStatusPayload, Stri
         let outcome = engine_start(config, control.clone());
         let state = app_handle.state::<ClickerState>();
         state.running.store(false, Ordering::SeqCst);
-        // Always record stats regardless of whether stop was manual or automatic
         if outcome.click_count > 0 {
             print_run_stats(outcome.click_count, outcome.elapsed_secs, outcome.avg_cpu);
             record_run(outcome.click_count, outcome.elapsed_secs, outcome.avg_cpu);
@@ -187,7 +201,7 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
     set_timer_resolution_high();
 
     let start_time = Instant::now();
-    let cpu_start = Instant::now();
+    let cpu_time_start = cpu_time_secs();
 
     let mut rng = SmallRng::new();
     let mut click_count: i64 = 0;
@@ -280,11 +294,12 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
     set_timer_resolution_restore();
 
     let elapsed_secs = start_time.elapsed().as_secs_f64();
-    // macOS CPU usage: approximate via wall-clock ratio of busy time
-    let busy_secs = cpu_start.elapsed().as_secs_f64();
-    let avg_cpu: f64 = if elapsed_secs < 0.001 { -1.0 } else {
-        let pct = (busy_secs / elapsed_secs) * 100.0;
-        if pct < 0.001 { -1.0 } else { pct }
+    let cpu_time_end = cpu_time_secs();
+    let avg_cpu: f64 = if cpu_time_start < 0.0 || cpu_time_end < 0.0 || elapsed_secs < 0.001 {
+        -1.0
+    } else {
+        let cpu_used = (cpu_time_end - cpu_time_start).max(0.0);
+        ((cpu_used / elapsed_secs) * 100.0).min(100.0)
     };
 
     RunOutcome { stop_reason, click_count, elapsed_secs, avg_cpu }
