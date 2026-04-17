@@ -7,6 +7,29 @@ All Windows-specific APIs have been replaced with native macOS equivalents (Core
 
 ---
 
+## macOS vs Windows — Feature Comparison
+
+| Feature | macOS | Windows |
+|---|---|---|
+| Simple Mode (toggle/hold, hotkeys, mouse button) | ✅ | ✅ |
+| Advanced Mode | ✅ | ✅ |
+| Duty Cycle | ✅ | ✅ |
+| Speed Variation (randomized CPS) | ✅ | ✅ |
+| Double Click | ✅ | ✅ |
+| Click Limit | ✅ | ✅ |
+| Time Limit | ✅ | ✅ |
+| Corner Stop | ✅ | ✅ |
+| Edge Stop | ✅ | ✅ |
+| Position Clicking | ✅ | ✅ |
+| Clicks per Second / Minute / Hour / Day | ✅ | ✅ |
+| Click stats overlay | ✅ | ✅ |
+| Light / Dark theme | ✅ | ✅ |
+| **Max CPS** | **✅ No hard limit** (99,999 cap) | ⚠️ ~500 CPS (Windows 1ms timer floor) |
+
+> Windows enforces a ~1ms minimum timer resolution system-wide, capping practical click rates at around 500 CPS. macOS has no such limitation — the kernel timer resolution is sufficient to sustain far higher rates without special privileges.
+
+---
+
 ## Requirements
 
 - macOS 12 Monterey or later
@@ -62,14 +85,12 @@ open src-tauri/target/release/BlurAutoClicker
 
 ## Required Permissions (first launch)
 
-macOS blocks synthetic input and event monitoring by default.  
-After launching the app for the first time, grant both permissions:
+macOS blocks synthetic input by default.  
+After launching the app for the first time, grant the following permission:
 
 1. **System Settings → Privacy & Security → Accessibility** — add `BlurAutoClicker`
-2. **System Settings → Privacy & Security → Input Monitoring** — add `BlurAutoClicker`
 
-Without **Accessibility**, simulated mouse clicks will silently fail.  
-Without **Input Monitoring**, scroll wheel hotkeys won't fire.
+Without **Accessibility**, simulated mouse clicks will silently fail.
 
 Restart the app after granting permissions.
 
