@@ -45,20 +45,90 @@ impl RunControl {
     }
 }
 
-/// Returns CPU time (user + sys) for the whole process in seconds.
-/// Falls back to -1.0 on error.
-fn cpu_time_secs() -> f64 {
-    unsafe {
-        let mut usage = std::mem::zeroed::<libc::rusage>();
-        // RUSAGE_SELF works reliably on macOS; RUSAGE_THREAD is not portable
-        if libc::getrusage(libc::RUSAGE_SELF, &mut usage) == 0 {
-            let user = usage.ru_utime.tv_sec as f64
-                + usage.ru_utime.tv_usec as f64 / 1_000_000.0;
-            let sys = usage.ru_stime.tv_sec as f64
-                + usage.ru_stime.tv_usec as f64 / 1_000_000.0;
-            return user + sys;
+// --- Per-thread CPU time via mach thread_info ---
+// This measures only the current thread, not the whole process.
+
+#[cfg(target_os = "macos")]
+mod mach_cpu {
+    use std::mem;
+
+    // mach types
+    type MachPort = u32;
+    type KernReturn = i32;
+    type ThreadFlavor = i32;
+    type NaturalT = u32;
+
+    const THREAD_BASIC_INFO: ThreadFlavor = 3;
+    const THREAD_BASIC_INFO_COUNT: NaturalT = 10; // sizeof(thread_basic_info) / sizeof(natural_t)
+    const TH_FLAGS_IDLE: u32 = 0x4;
+
+    #[repr(C)]
+    #[derive(Default)]
+    struct TimeValue {
+        seconds: i32,
+        microseconds: i32,
+    }
+
+    #[repr(C)]
+    #[derive(Default)]
+    struct ThreadBasicInfo {
+        user_time:     TimeValue,
+        system_time:   TimeValue,
+        cpu_usage:     i32,
+        policy:        i32,
+        run_state:     i32,
+        flags:         u32,
+        suspend_count: i32,
+        sleep_time:    i32,
+    }
+
+    extern "C" {
+        fn mach_thread_self() -> MachPort;
+        fn thread_info(
+            target_thread: MachPort,
+            flavor: ThreadFlavor,
+            thread_info_out: *mut i32,
+            thread_info_out_cnt: *mut NaturalT,
+        ) -> KernReturn;
+        fn mach_port_deallocate(task: MachPort, name: MachPort) -> KernReturn;
+        fn mach_task_self() -> MachPort;
+    }
+
+    /// Returns CPU time (user + sys) used by the current thread, in seconds.
+    /// Returns -1.0 on any error.
+    pub fn thread_cpu_time_secs() -> f64 {
+        unsafe {
+            let thread = mach_thread_self();
+            let mut info: ThreadBasicInfo = mem::zeroed();
+            let mut count: NaturalT = THREAD_BASIC_INFO_COUNT;
+            let kr = thread_info(
+                thread,
+                THREAD_BASIC_INFO,
+                &mut info as *mut _ as *mut i32,
+                &mut count,
+            );
+            mach_port_deallocate(mach_task_self(), thread);
+            if kr != 0 {
+                return -1.0;
+            }
+            if info.flags & TH_FLAGS_IDLE != 0 {
+                return 0.0;
+            }
+            let user = info.user_time.seconds as f64
+                + info.user_time.microseconds as f64 / 1_000_000.0;
+            let sys = info.system_time.seconds as f64
+                + info.system_time.microseconds as f64 / 1_000_000.0;
+            user + sys
         }
     }
+}
+
+fn cpu_time_secs() -> f64 {
+    #[cfg(target_os = "macos")]
+    {
+        return mach_cpu::thread_cpu_time_secs();
+    }
+    #[allow(unreachable_code)]
     -1.0
 }
 
