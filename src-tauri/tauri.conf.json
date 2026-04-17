@@ -28,7 +28,9 @@
         "label": "overlay",
         "url": "overlay.html",
         "title": "Overlay",
-        "fullscreen": true,
+        "width": 800,
+        "height": 600,
+        "fullscreen": false,
         "transparent": true,
         "decorations": false,
         "alwaysOnTop": true,
@@ -51,15 +53,18 @@
         "https://github.com/Blur009/Blur-AutoClicker/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIyREY0RTc2QTU4Qjc1N0UKUldSK2RZdWxkazdmSW1IQmI4ZVMwOTRzWnBiVENhMFNYMFRtN0V4R3N0Q2JXQUdqM2t4VnRnNUYK"
-    },
-    "windows": {
-      "installMode": "passive"
     }
   },
   "bundle": {
     "active": true,
-    "targets": "nsis",
+    "targets": ["dmg", "app"],
     "createUpdaterArtifacts": true,
-    "icon": ["icons/icon.ico"]
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.png"
+    ]
   }
 }
