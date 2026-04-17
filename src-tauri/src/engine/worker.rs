@@ -346,8 +346,6 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
         click_count += clicks_this_cycle as i64;
         CLICK_COUNT.store(click_count, Ordering::Relaxed);
 
-        // Sleep until next batch — single blocking sleep, no spin loop.
-        // The stop check happens at the top of the next iteration.
         let remaining = next_batch_time.saturating_duration_since(Instant::now());
         if remaining > Duration::ZERO {
             std::thread::sleep(remaining);
@@ -358,14 +356,11 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
 
     let elapsed_secs = start_time.elapsed().as_secs_f64();
     let cpu_time_end = cpu_time_secs();
-    // Require at least 1.0s elapsed — mach thread timer resolution is too coarse
-    // for sub-second runs and produces cpu_used ≈ elapsed, yielding ~100%.
-    let avg_cpu: f64 = if cpu_time_start < 0.0 || cpu_time_end < 0.0 || elapsed_secs < 1.0 {
-        -1.0
-    } else {
-        let cpu_used = (cpu_time_end - cpu_time_start).max(0.0);
-        ((cpu_used / elapsed_secs) * 100.0).min(100.0)
-    };
+    // DEBUG: hardcoded to 25.0 to verify display pipeline is not overriding the value
+    let _cpu_time_start = cpu_time_start;
+    let _cpu_time_end = cpu_time_end;
+    let _elapsed_secs = elapsed_secs;
+    let avg_cpu: f64 = 25.0;
 
     RunOutcome { stop_reason, click_count, elapsed_secs, avg_cpu }
 }
