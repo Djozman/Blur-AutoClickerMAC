@@ -17,17 +17,22 @@ pub static OVERLAY_THREAD_RUNNING: std::sync::atomic::AtomicBool =
 /// Force the overlay NSWindow to NSScreenSaverWindowLevel (2000) and
 /// configure it so it never becomes the key window or appears in Exposé.
 #[cfg(target_os = "macos")]
-unsafe fn set_overlay_window_level(ns_window: *mut objc::runtime::Object) {
+unsafe fn set_overlay_window_level(ns_view: *mut objc::runtime::Object) {
     use objc::{msg_send, sel, sel_impl};
-    // NSScreenSaverWindowLevel = 2000, keeps it above everything but never
-    // participates in normal window ordering.
+    // Get NSWindow from NSView.
+    let ns_window: *mut objc::runtime::Object = msg_send![ns_view, window];
+    if ns_window.is_null() {
+        log::warn!("[Overlay] ns_window is null, skipping level config");
+        return;
+    }
+    // NSScreenSaverWindowLevel = 2000
     let _: () = msg_send![ns_window, setLevel: 2000i64];
-    // Prevent it from ever becoming key or main window.
+    // Never become key or main window.
     let _: () = msg_send![ns_window, setCanBecomeKeyWindow: false];
     let _: () = msg_send![ns_window, setCanBecomeMainWindow: false];
-    // Hide from Exposé / Mission Control.
-    let _: () = msg_send![ns_window, setCollectionBehavior: 1u64 << 7]; // NSWindowCollectionBehaviorStationary
-    // Ignore mouse events at the NSWindow level too (belt-and-suspenders).
+    // NSWindowCollectionBehaviorStationary (1 << 7) — hidden from Mission Control.
+    let _: () = msg_send![ns_window, setCollectionBehavior: 128u64];
+    // Ignore mouse events at NSWindow level.
     let _: () = msg_send![ns_window, setIgnoresMouseEvents: true];
 }
 
@@ -38,7 +43,7 @@ pub fn init_overlay(app: &AppHandle) -> Result<(), String> {
 
     log::info!("[Overlay] Running one-time init...");
 
-    // Hide immediately before anything else — prevents any WebView flash.
+    // Hide immediately — prevents WebView flash before config is applied.
     let _ = window.hide();
 
     window.set_ignore_cursor_events(true).map_err(|e| e.to_string())?;
@@ -56,14 +61,14 @@ pub fn init_overlay(app: &AppHandle) -> Result<(), String> {
         use raw_window_handle::RawWindowHandle;
         if let Ok(handle) = window.window_handle() {
             if let RawWindowHandle::AppKit(appkit) = handle.as_raw() {
-                let ns_window = appkit.ns_window.as_ptr() as *mut objc::runtime::Object;
-                unsafe { set_overlay_window_level(ns_window) };
+                let ns_view = appkit.ns_view.as_ptr() as *mut objc::runtime::Object;
+                unsafe { set_overlay_window_level(ns_view) };
                 log::info!("[Overlay] NSScreenSaverWindowLevel applied");
             }
         }
     }
 
-    // Hide again after configuration to be sure.
+    // Hide again after configuration.
     let _ = window.hide();
     log::info!("[Overlay] Init complete — window hidden at screen-saver level");
     Ok(())
