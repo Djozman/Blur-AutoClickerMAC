@@ -63,11 +63,13 @@ pub fn start_clicker_inner(app: &AppHandle) -> Result<ClickerStatusPayload, Stri
 
     std::thread::spawn(move || {
         let outcome = engine_start(config, control.clone());
-        if !control.is_current_generation() { return; }
         let state = app_handle.state::<ClickerState>();
         state.running.store(false, Ordering::SeqCst);
-        print_run_stats(outcome.click_count, outcome.elapsed_secs, outcome.avg_cpu);
-        record_run(outcome.click_count, outcome.elapsed_secs, outcome.avg_cpu);
+        // Always record stats regardless of whether stop was manual or automatic
+        if outcome.click_count > 0 {
+            print_run_stats(outcome.click_count, outcome.elapsed_secs, outcome.avg_cpu);
+            record_run(outcome.click_count, outcome.elapsed_secs, outcome.avg_cpu);
+        }
         *state.stop_reason.lock().unwrap() = Some(outcome.stop_reason.clone());
         *state.last_error.lock().unwrap() = None;
         emit_status(&app_handle);
