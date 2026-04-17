@@ -255,6 +255,26 @@ pub fn now_epoch_ms() -> u64 {
         .unwrap_or(0)
 }
 
+/// Target ~20ms between wakes, batch up to 64 clicks per wake.
+fn calc_batch_size(cps: f64, double_click: bool) -> usize {
+    if double_click || cps < 50.0 { return 1; }
+    let ideal = (cps * 0.020).ceil() as usize;
+    ideal.clamp(2, 64)
+}
+
+/// Sleep until target, spinning only the last 50µs for precision.
+fn precise_wait_until(target: Instant, control: &RunControl) {
+    const SPIN_WINDOW: Duration = Duration::from_micros(50);
+    let remaining = target.saturating_duration_since(Instant::now());
+    if remaining > SPIN_WINDOW {
+        std::thread::sleep(remaining - SPIN_WINDOW);
+    }
+    while Instant::now() < target {
+        if !control.is_active() { break; }
+        std::hint::spin_loop();
+    }
+}
+
 // -- Engine loop --
 
 pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
@@ -268,7 +288,7 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
     let mut click_count: i64 = 0;
     let (down_flag, up_flag) = get_button_flags(config.button);
     let cps = if config.interval > 0.0 { 1.0 / config.interval } else { 0.0 };
-    let batch_size = if !config.double_click_enabled && cps >= 50.0 { 2usize } else { 1usize };
+    let batch_size = calc_batch_size(cps, config.double_click_enabled);
     let batch_interval = config.interval * batch_size as f64;
     let has_position = config.position_enabled;
     let use_smoothing = config.smoothing == 1 && cps < 50.0;
@@ -301,7 +321,7 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
             batch_interval
         };
         let hold_ms = (config.interval * (config.duty.max(0.0) / 100.0) * 1000.0) as u32;
-        next_batch_time += Duration::from_secs_f64(batch_duration.max(0.001));
+        next_batch_time += Duration::from_secs_f64(batch_duration.max(0.0001));
 
         if has_position {
             if config.offset_chance <= 0.0 || rng.next_f64() * 100.0 <= config.offset_chance {
@@ -346,10 +366,7 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
         click_count += clicks_this_cycle as i64;
         CLICK_COUNT.store(click_count, Ordering::Relaxed);
 
-        let remaining = next_batch_time.saturating_duration_since(Instant::now());
-        if remaining > Duration::ZERO {
-            std::thread::sleep(remaining);
-        }
+        precise_wait_until(next_batch_time, &control);
     }
 
     set_timer_resolution_restore();
@@ -357,8 +374,6 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
     let elapsed_secs = start_time.elapsed().as_secs_f64();
     let cpu_time_end = cpu_time_secs();
 
-    // Compute real CPU% — cpu_used is thread CPU seconds, elapsed is wall seconds.
-    // Only valid if both measurements succeeded and elapsed is at least 1s.
     let avg_cpu = if cpu_time_start >= 0.0 && cpu_time_end >= 0.0 && elapsed_secs >= 1.0 {
         let cpu_used = (cpu_time_end - cpu_time_start).max(0.0);
         let pct = (cpu_used / elapsed_secs) * 100.0;
@@ -374,8 +389,6 @@ pub fn get_click_count() -> i64 {
     CLICK_COUNT.load(Ordering::Relaxed)
 }
 
-/// Kept for mouse.rs hold/double-click sleeps — these are short durations
-/// where interruptibility matters more than CPU efficiency.
 pub fn sleep_interruptible(remaining: Duration, control: &RunControl) {
     let tick = Duration::from_millis(5);
     let start = Instant::now();
