@@ -1,6 +1,4 @@
-//! macOS overlay backend — replaces all Win32 calls with Tauri's cross-platform window API.
-//! Window level is forced to NSScreenSaverWindowLevel (2000) via objc so the overlay
-//! is never in the normal window stack and never flashes on launch.
+//! macOS overlay backend — safe Tauri API only, no objc.
 
 use crate::app_state::ClickerState;
 use crate::engine::mouse::{current_monitor_rects, current_virtual_screen_rect};
@@ -8,33 +6,10 @@ use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
-use raw_window_handle::HasWindowHandle;
 
 static LAST_ZONE_SHOW: Mutex<Option<Instant>> = Mutex::new(None);
 pub static OVERLAY_THREAD_RUNNING: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(true);
-
-/// Force the overlay NSWindow to NSScreenSaverWindowLevel (2000) and
-/// configure it so it never becomes the key window or appears in Exposé.
-#[cfg(target_os = "macos")]
-unsafe fn set_overlay_window_level(ns_view: *mut objc::runtime::Object) {
-    use objc::{msg_send, sel, sel_impl};
-    // Get NSWindow from NSView.
-    let ns_window: *mut objc::runtime::Object = msg_send![ns_view, window];
-    if ns_window.is_null() {
-        log::warn!("[Overlay] ns_window is null, skipping level config");
-        return;
-    }
-    // NSScreenSaverWindowLevel = 2000
-    let _: () = msg_send![ns_window, setLevel: 2000i64];
-    // Never become key or main window.
-    let _: () = msg_send![ns_window, setCanBecomeKeyWindow: false];
-    let _: () = msg_send![ns_window, setCanBecomeMainWindow: false];
-    // NSWindowCollectionBehaviorStationary (1 << 7) — hidden from Mission Control.
-    let _: () = msg_send![ns_window, setCollectionBehavior: 128u64];
-    // Ignore mouse events at NSWindow level.
-    let _: () = msg_send![ns_window, setIgnoresMouseEvents: true];
-}
 
 pub fn init_overlay(app: &AppHandle) -> Result<(), String> {
     let window = app
@@ -43,7 +18,7 @@ pub fn init_overlay(app: &AppHandle) -> Result<(), String> {
 
     log::info!("[Overlay] Running one-time init...");
 
-    // Hide immediately — prevents WebView flash before config is applied.
+    // Hide before anything else — prevents WebView flash.
     let _ = window.hide();
 
     window.set_ignore_cursor_events(true).map_err(|e| e.to_string())?;
@@ -55,22 +30,8 @@ pub fn init_overlay(app: &AppHandle) -> Result<(), String> {
         let _ = window.set_size(tauri::PhysicalSize::new(b.width as u32, b.height as u32));
     }
 
-    // Apply macOS-specific window level via objc.
-    #[cfg(target_os = "macos")]
-    {
-        use raw_window_handle::RawWindowHandle;
-        if let Ok(handle) = window.window_handle() {
-            if let RawWindowHandle::AppKit(appkit) = handle.as_raw() {
-                let ns_view = appkit.ns_view.as_ptr() as *mut objc::runtime::Object;
-                unsafe { set_overlay_window_level(ns_view) };
-                log::info!("[Overlay] NSScreenSaverWindowLevel applied");
-            }
-        }
-    }
-
-    // Hide again after configuration.
     let _ = window.hide();
-    log::info!("[Overlay] Init complete — window hidden at screen-saver level");
+    log::info!("[Overlay] Init complete — window hidden");
     Ok(())
 }
 
