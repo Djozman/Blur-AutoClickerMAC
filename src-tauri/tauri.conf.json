@@ -23,8 +23,7 @@
         "transparent": true,
         "backgroundColor": "#00000000",
         "maximizable": false,
-        "shadow": false,
-        "visible": false
+        "shadow": false
       },
       {
         "label": "overlay",
