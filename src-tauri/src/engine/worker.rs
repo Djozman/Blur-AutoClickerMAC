@@ -46,20 +46,18 @@ impl RunControl {
 }
 
 // --- Per-thread CPU time via mach thread_info ---
-// This measures only the current thread, not the whole process.
 
 #[cfg(target_os = "macos")]
 mod mach_cpu {
     use std::mem;
 
-    // mach types
     type MachPort = u32;
     type KernReturn = i32;
     type ThreadFlavor = i32;
     type NaturalT = u32;
 
     const THREAD_BASIC_INFO: ThreadFlavor = 3;
-    const THREAD_BASIC_INFO_COUNT: NaturalT = 10; // sizeof(thread_basic_info) / sizeof(natural_t)
+    const THREAD_BASIC_INFO_COUNT: NaturalT = 10;
     const TH_FLAGS_IDLE: u32 = 0x4;
 
     #[repr(C)]
@@ -94,8 +92,6 @@ mod mach_cpu {
         fn mach_task_self() -> MachPort;
     }
 
-    /// Returns CPU time (user + sys) used by the current thread, in seconds.
-    /// Returns -1.0 on any error.
     pub fn thread_cpu_time_secs() -> f64 {
         unsafe {
             let thread = mach_thread_self();
@@ -108,12 +104,8 @@ mod mach_cpu {
                 &mut count,
             );
             mach_port_deallocate(mach_task_self(), thread);
-            if kr != 0 {
-                return -1.0;
-            }
-            if info.flags & TH_FLAGS_IDLE != 0 {
-                return 0.0;
-            }
+            if kr != 0 { return -1.0; }
+            if info.flags & TH_FLAGS_IDLE != 0 { return 0.0; }
             let user = info.user_time.seconds as f64
                 + info.user_time.microseconds as f64 / 1_000_000.0;
             let sys = info.system_time.seconds as f64
@@ -125,9 +117,7 @@ mod mach_cpu {
 
 fn cpu_time_secs() -> f64 {
     #[cfg(target_os = "macos")]
-    {
-        return mach_cpu::thread_cpu_time_secs();
-    }
+    { return mach_cpu::thread_cpu_time_secs(); }
     #[allow(unreachable_code)]
     -1.0
 }
@@ -269,7 +259,6 @@ pub fn now_epoch_ms() -> u64 {
 
 pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
     CLICK_COUNT.store(0, Ordering::SeqCst);
-
     set_timer_resolution_high();
 
     let start_time = Instant::now();
@@ -357,9 +346,11 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
         click_count += clicks_this_cycle as i64;
         CLICK_COUNT.store(click_count, Ordering::Relaxed);
 
+        // Sleep until next batch — single blocking sleep, no spin loop.
+        // The stop check happens at the top of the next iteration.
         let remaining = next_batch_time.saturating_duration_since(Instant::now());
         if remaining > Duration::ZERO {
-            sleep_interruptible(remaining, &control);
+            std::thread::sleep(remaining);
         }
     }
 
@@ -381,6 +372,8 @@ pub fn get_click_count() -> i64 {
     CLICK_COUNT.load(Ordering::Relaxed)
 }
 
+/// Kept for mouse.rs hold/double-click sleeps — these are short durations
+/// where interruptibility matters more than CPU efficiency.
 pub fn sleep_interruptible(remaining: Duration, control: &RunControl) {
     let tick = Duration::from_millis(5);
     let start = Instant::now();
