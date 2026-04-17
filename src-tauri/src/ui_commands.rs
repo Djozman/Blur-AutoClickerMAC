@@ -22,7 +22,6 @@ use crate::hotkeys::register_hotkey_inner;
 pub fn get_text_scale_factor() -> f64 {
     1.0
 }
-
 #[tauri::command]
 pub fn set_webview_zoom(window: tauri::Window, factor: f64) -> Result<(), String> {
     window
@@ -70,22 +69,14 @@ pub fn update_settings(
         || old.corner_stop_tr != settings.corner_stop_tr
         || old.corner_stop_bl != settings.corner_stop_bl
         || old.corner_stop_br != settings.corner_stop_br;
-    let hotkey_changed = old.hotkey != settings.hotkey;
     drop(old);
 
     *state.settings.lock().unwrap() = settings.clone();
 
     if !was_initialized {
         state.settings_initialized.store(true, Ordering::SeqCst);
-        // Always register the hotkey from saved settings on first load.
-        // Without this, registered_hotkey stays None and the listener never fires.
-        let _ = register_hotkey_inner(&app, settings.hotkey.clone());
-        log::info!("[Settings] First update_settings — initialized, hotkey registered");
+        log::info!("[Settings] First update_settings — initialized, skipping overlay");
         return Ok(settings);
-    }
-
-    if hotkey_changed {
-        let _ = register_hotkey_inner(&app, settings.hotkey.clone());
     }
 
     if zone_changed {
