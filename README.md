@@ -34,8 +34,7 @@ All Windows-specific APIs have been replaced with native macOS equivalents (Core
 >
 > | Duty Cycle OFF · Speed Variation OFF | Duty Cycle ON · Speed Variation ON |
 > |:---:|:---:|
-> | <!-- Add screenshot: assets/cps-both-off.png --> | <!-- Add screenshot: assets/cps-both-on.png --> |
-> | `![Both off](assets/cps-both-off.png)` | `![Both on](assets/cps-both-on.png)` |
+> | ![Both off](assets/cps-both-off.jpg) | ![Both on](assets/cps-both-on.jpg) |
 >
 > *With both options disabled, the UI CPS and actual registered CPS stay 1:1. With them enabled, timing jitter causes measurable input drop at high rates.*
 
