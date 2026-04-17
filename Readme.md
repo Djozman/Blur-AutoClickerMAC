@@ -1,119 +1,165 @@
-[![Downloads](https://img.shields.io/github/downloads/Blur009/Blur-AutoClicker/total?style=for-the-badge&label=downloads)](https://github.com/Blur009/Blur-AutoClicker/releases)
+# Blur AutoClicker — macOS Port
 
-# Blur Auto Clicker
-
-<div align="center">
-    <img src="https://github.com/Blur009/Blur-AutoClicker/blob/main/public/V3.0.0_UI.png" width="600"/>
-</div>
-<p align="center"><em>An accuracy and performance focused auto clicker</em></p>
-
-
-## Why I made it:
-
-A lot of the most popular auto clickers, like OP Auto Clicker and Speed Auto Clicker, are pretty inaccurate at higher speeds. Setting CPS to 50 might give you 40... or 60. Technically this is not an issue since they are still clicking _fast_, but I am a perfectionist and I wanted something that could actually click at the CPS I set it to, even at higher speeds. So I made this.
-
-Additionally, many auto clickers have 1 good feature but are missing the other features I want. My auto clicker combines all the features I have seen in other auto clickers, and even adds some of my own ideas.
-
-Performance is also a heavy focus of this. While version 3 and onwards run on a web-based UI, The total RAM usage is around 50mb and I intend for it to never go above 100mb.
+A macOS port of [Blur-AutoClicker](https://github.com/Blur009/Blur-AutoClicker) by Blur009.  
+All Windows-specific APIs have been replaced with native macOS equivalents (Core Graphics, Carbon, Core Foundation).
 
 ---
 
-## Features
+## Requirements
 
-<div align="center">
-    <img src="https://github.com/Blur009/Blur-AutoClicker/blob/main/public/30s_500cps_Speed_Test.png" width="600"/>
-</div>
-<p align="center"><em>Blur Auto Clicker reaching 500 CPS steadily (windows limit¹)</em></p>
-
-Simple Mode:
-- On / Off Indicator (blur logo turns green when active)
-- Individual mouse button settings (left, right, middle)
-- Hold / Toggle activation modes
-- customizable hotkeys
-
-Advanced Mode (includes all simple mode features plus):
-- adjustable click timing (duty cycle)
-- Speed Range Mode (randomizes CPS within a range)
-- Corner and edge stopping (turns off when mouse is in corners or near edges of the screen)
-- Click and Time limits (stop after certain amount of clicks or time)
-- Double clicks
-- Position Clicking (you can pick a position where the mouse will move to and click.)
-- Clicks can be adjusted to per Second, Minute, Hour, or even Day
-  
-Other Features:
-- click stats (total clicks, clicks per second, etc)
-  
----
-
-## Installation
-
- <tr>
-    <td align="center" colspan="2">
-      <a href="https://github.com/Blur009/Blur-AutoClicker/releases/latest">
-        <img src="https://github.com/machiav3lli/oandbackupx/blob/034b226cea5c1b30eb4f6a6f313e4dadcbb0ece4/badge_github.png" alt="Download from GitHub" height="75">
-      </a>
-    </td>
-  </tr>
-
-By default, the program is stored in `%localappdata%/BlurAutoClicker/BlurAutoClicker.exe`. 
-
-Config and stats are stored in `%appdata%/BlurAutoClicker`.
-
-*Info: If you are on version 2.1.2 or below, delete the old executable (the installer will not delete it for you).
-The old Config and Stats files will unfortunately not be compatible with the new versions (3.0.0 and above), so they will be deleted upon launching the application.*
-
-### Windows trust / signing
-
-Unsigned GitHub-downloaded Windows installers can still show a SmartScreen warning. Tauri updater signing is separate from Windows Authenticode signing. See [docs/windows-release-trust.md](docs/windows-release-trust.md) for build commands, signature checks, and the release-trust checklist.
+- macOS 12 Monterey or later
+- [Node.js](https://nodejs.org/) v18+
+- [Rust](https://rustup.rs/) (stable toolchain)
+- Xcode Command Line Tools — run `xcode-select --install` if not already installed
 
 ---
 
-## Building From Source
+## Build from Source
 
-This project is currently Windows-first. The maintained desktop build path is the Rust `x86_64-pc-windows-msvc` toolchain plus Node.js.
+Run every command **one line at a time** in Terminal. Do not paste blocks with `#` comments — zsh will error on them.
 
-Requirements:
-- Node.js 20 or newer
-- Rust via `rustup`
-- Microsoft C++ Build Tools / Visual Studio Build Tools
-
-Setup:
-```powershell
-git clone https://github.com/Blur009/Blur-AutoClicker.git
-cd Blur-AutoClicker
+```bash
+cd ~/Documents
+git clone https://github.com/Djozman/Blur-AutoClickerMAC.git
+cd Blur-AutoClickerMAC
 npm install
-rustup default stable-x86_64-pc-windows-msvc
+npm install --save-dev @tauri-apps/cli
+npm pkg set scripts.tauri="tauri"
 ```
 
-Run the app in development:
-```powershell
-npm exec tauri dev
+### Generate app icons
+
+```bash
+mkdir -p src-tauri/icons
+sips -s format png --resampleWidth 1024 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns --out src-tauri/icons/icon.png
+npm run tauri icon src-tauri/icons/icon.png
 ```
 
-Build a release bundle:
-```powershell
-npm exec tauri build
+### Fix unused import in overlay.rs
+
+```bash
+sed -i '' 's/use crate::engine::mouse::{current_monitor_rects, current_virtual_screen_rect, VirtualScreenRect};/use crate::engine::mouse::{current_monitor_rects, current_virtual_screen_rect};/' src-tauri/src/overlay.rs
 ```
 
-Useful validation commands:
-```powershell
-npm run lint
-npm run build
-cargo test --manifest-path src-tauri/Cargo.toml
+### Build
+
+```bash
+npm run tauri build
 ```
 
-The built Windows installer is written to `src-tauri/target/release/bundle/nsis/`.
+The compiled app will be at:
+```
+src-tauri/target/release/bundle/macos/BlurAutoClicker.app
+```
+
+Open it:
+```bash
+open src-tauri/target/release/bundle/macos/
+```
+
+Or run the binary directly:
+```bash
+open src-tauri/target/release/BlurAutoClicker
+```
 
 ---
 
-## Support the project!
-[![ko-fi](https://www.ko-fi.com/img/donate_sm.png)](https://ko-fi.com/blur009)
+## Required Permissions (first launch)
 
-You can also support the project by starring the repository and sharing it with your friends :). Thank you for your support!
+macOS blocks synthetic input and event monitoring by default.  
+After launching the app for the first time, grant both permissions:
 
-## License
+1. **System Settings → Privacy & Security → Accessibility** — add `BlurAutoClicker`
+2. **System Settings → Privacy & Security → Input Monitoring** — add `BlurAutoClicker`
 
-This project is licensed under the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html#license-text).
+Without **Accessibility**, simulated mouse clicks will silently fail.  
+Without **Input Monitoring**, scroll wheel hotkeys won't fire.
 
-## Other Info
-1. Windows has a limit of around 500 CPS for mouse events. This is because Windows timer resolution is limited to about 1ms at minimum (1000cps) but windows also needs to do other things, so the practical limit is around 800cps, but since I can not guarantee that performance on every computer, I set the limit to 500cps.
+Restart the app after granting permissions.
+
+---
+
+## Errors You May Encounter
+
+### `cd: no such file or directory: /path/to/Blur-AutoClickerMAC`
+
+**Cause:** You copy-pasted the placeholder path literally instead of cloning first.  
+**Fix:**
+```bash
+cd ~/Documents
+git clone https://github.com/Djozman/Blur-AutoClickerMAC.git
+cd Blur-AutoClickerMAC
+```
+
+---
+
+### `npm error Missing script: "tauri"`
+
+**Cause:** The `tauri` script is not registered in `package.json` and/or `@tauri-apps/cli` is not installed.  
+**Fix:**
+```bash
+npm install --save-dev @tauri-apps/cli
+npm pkg set scripts.tauri="tauri"
+```
+
+---
+
+### `failed to open icon .../src-tauri/icons/icon.png: No such file or directory`
+
+**Cause:** The `icons/` folder doesn't exist in the repo — icons are generated locally and not committed.  
+**Fix:**
+```bash
+mkdir -p src-tauri/icons
+sips -s format png --resampleWidth 1024 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns --out src-tauri/icons/icon.png
+npm run tauri icon src-tauri/icons/icon.png
+```
+
+---
+
+### `use of unresolved module or unlinked crate 'windows_targets'`
+
+**Cause:** You have an old local clone that still has the original Windows-only `worker.rs`. Your local files are outdated.  
+**Fix:** Wipe and re-clone so you get the latest fixed files:
+```bash
+cd ~/Documents
+rm -rf Blur-AutoClickerMAC
+git clone https://github.com/Djozman/Blur-AutoClickerMAC.git
+cd Blur-AutoClickerMAC
+```
+
+---
+
+### `warning: unused import: VirtualScreenRect`
+
+**Cause:** A leftover import in `overlay.rs` from the Windows version.  
+**Fix:**
+```bash
+sed -i '' 's/use crate::engine::mouse::{current_monitor_rects, current_virtual_screen_rect, VirtualScreenRect};/use crate::engine::mouse::{current_monitor_rects, current_virtual_screen_rect};/' src-tauri/src/overlay.rs
+```
+
+---
+
+### `zsh: number expected` / `zsh: unknown file attribute`
+
+**Cause:** You pasted a multi-line block that included `#` comment lines. Zsh treats `#` differently when pasted inline.  
+**Fix:** Run commands **one line at a time**, never paste comment lines.
+
+---
+
+## What Was Changed from the Windows Version
+
+| File | Change |
+|---|---|
+| `src-tauri/Cargo.toml` | Removed `windows-sys`, `winreg`, `windows-targets` |
+| `src-tauri/src/engine/mouse.rs` | Rewrote using `CGEventCreateMouseEvent`, `CGWarpMouseCursorPosition` (Core Graphics) |
+| `src-tauri/src/engine/worker.rs` | Removed `NtSetTimerResolution`, `QueryThreadCycleTime`, `windows_targets::link!` |
+| `src-tauri/src/engine/mod.rs` | Removed `NtSetTimerResolution` extern block — macOS kernel timer resolution is sufficient |
+| `src-tauri/src/hotkeys.rs` | Replaced Win32 keyboard hooks with Carbon `GetKeys` + `CGEventTap` for scroll wheel |
+| `src-tauri/src/overlay.rs` | Replaced all Win32 window calls with Tauri's cross-platform window API |
+
+---
+
+## Credits
+
+- Original Windows app: [Blur009/Blur-AutoClicker](https://github.com/Blur009/Blur-AutoClicker)
+- macOS port: [Djozman](https://github.com/Djozman)
