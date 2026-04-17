@@ -45,6 +45,30 @@ pub fn run() {
                 );
             }
 
+            // Suppress the overlay for the first 2 seconds by hiding it every 50ms.
+            // macOS WebView init re-shows the window after hide() — this beats it.
+            let suppress_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                for _ in 0..40 {
+                    if let Some(w) = suppress_handle.get_webview_window("overlay") {
+                        let _ = w.hide();
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                log::info!("[Overlay] Startup suppression complete");
+            });
+
+            // Also keep hidden if macOS ever focuses it.
+            if let Some(overlay_win) = app.get_webview_window("overlay") {
+                let _ = overlay_win.hide();
+                let hide_handle = overlay_win.clone();
+                overlay_win.on_window_event(move |event| {
+                    if let tauri::WindowEvent::Focused(true) = event {
+                        let _ = hide_handle.hide();
+                    }
+                });
+            }
+
             let auto_hide_handle = app.handle().clone();
             std::thread::spawn(move || {
                 while crate::overlay::OVERLAY_THREAD_RUNNING
@@ -117,6 +141,9 @@ pub fn run() {
                 ..
             } = &event
             {
+                if label == "overlay" {
+                    return;
+                }
                 if label == "main" {
                     crate::overlay::OVERLAY_THREAD_RUNNING
                         .store(false, std::sync::atomic::Ordering::SeqCst);
