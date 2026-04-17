@@ -358,7 +358,9 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
 
     let elapsed_secs = start_time.elapsed().as_secs_f64();
     let cpu_time_end = cpu_time_secs();
-    let avg_cpu: f64 = if cpu_time_start < 0.0 || cpu_time_end < 0.0 || elapsed_secs < 0.1 {
+    // Require at least 1.0s elapsed — mach thread timer resolution is too coarse
+    // for sub-second runs and produces cpu_used ≈ elapsed, yielding ~100%.
+    let avg_cpu: f64 = if cpu_time_start < 0.0 || cpu_time_end < 0.0 || elapsed_secs < 1.0 {
         -1.0
     } else {
         let cpu_used = (cpu_time_end - cpu_time_start).max(0.0);

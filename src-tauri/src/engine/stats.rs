@@ -188,7 +188,8 @@ pub fn record_run(click_count: i64, elapsed_secs: f64, avg_cpu: f64) {
         id: next_id(&runs),
         clicks: click_count,
         time_secs: round2(elapsed_secs),
-        avg_cpu: if avg_cpu < 0.0 { -1.0 } else { round2(avg_cpu) },
+        // Sanitize at write time so bad values never reach the CSV.
+        avg_cpu: sanitize_cpu(if avg_cpu < 0.0 { -1.0 } else { round2(avg_cpu) }),
         runs: 1,
     };
 
