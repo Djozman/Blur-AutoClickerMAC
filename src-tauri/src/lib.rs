@@ -45,7 +45,20 @@ pub fn run() {
                 );
             }
 
-            // Hide the overlay immediately and keep it hidden if macOS ever focuses it.
+            // Suppress the overlay for the first 2 seconds by hiding it every 50ms.
+            // macOS WebView init re-shows the window after hide() — this beats it.
+            let suppress_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                for _ in 0..40 {
+                    if let Some(w) = suppress_handle.get_webview_window("overlay") {
+                        let _ = w.hide();
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                log::info!("[Overlay] Startup suppression complete");
+            });
+
+            // Also keep hidden if macOS ever focuses it.
             if let Some(overlay_win) = app.get_webview_window("overlay") {
                 let _ = overlay_win.hide();
                 let hide_handle = overlay_win.clone();
