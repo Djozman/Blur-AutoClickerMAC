@@ -99,10 +99,6 @@ function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-function waitFrame() {
-  return new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-}
-
 export default function App() {
   const [tab, setTab] = useState<Tab>("simple");
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -341,15 +337,13 @@ export default function App() {
         const appWindow = getCurrentWindow();
 
         if (!launchWindowPlacementDone.current) {
+          await appWindow.setSize(new LogicalSize(width, height));
+
           root.style.width = `${width}px`;
           root.style.height = `${height}px`;
 
-          await waitFrame();
-          await appWindow.setSize(new LogicalSize(width, height));
-
           await wait(30);
           await applyStartupWindowPlacement();
-          await appWindow.show();
           launchWindowPlacementDone.current = true;
           return;
         }
@@ -360,8 +354,6 @@ export default function App() {
         const currentW = currentSize.width / monitorScale;
 
         if (width < currentW || height < currentH) {
-          // Shrinking: resize window first (content already fits inside),
-          // then snap CSS — no white gap since content is smaller than window
           const snapW = width >= currentW ? width : currentW;
           const snapH = height >= currentH ? height : currentH;
 
@@ -377,15 +369,14 @@ export default function App() {
             resizeTimeout.current = null;
           }, 320);
         } else {
-          // Growing: set CSS to new size first so content pre-fills,
-          // wait one frame for browser to paint, then expand window
+          await appWindow.setSize(new LogicalSize(width, height));
+          root.style.width = `${currentW}px`;
+          root.style.height = `${currentH}px`;
+
+          void root.offsetHeight;
+
           root.style.width = `${width}px`;
           root.style.height = `${height}px`;
-
-          void root.offsetHeight; // force reflow
-
-          await waitFrame();
-          await appWindow.setSize(new LogicalSize(width, height));
         }
       } catch (err) {
         console.error("Failed to size window:", err);
