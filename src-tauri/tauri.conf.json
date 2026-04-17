@@ -72,9 +72,7 @@
     "macOS": {
       "minimumSystemVersion": "12.0",
       "entitlements": "entitlements.plist",
-      "infoPlist": {
-        "NSAccessibilityUsageDescription": "BlurAutoClicker needs Accessibility access to simulate mouse clicks."
-      }
+      "infoPlist": "Info.plist"
     }
   }
 }
