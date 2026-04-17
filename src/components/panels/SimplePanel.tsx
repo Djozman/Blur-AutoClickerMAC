@@ -81,7 +81,7 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
             className="simple-inline-input"
             value={settings.clickSpeed}
             min={1}
-            max={500}
+            max={99999}
             onChange={(e) => {
               const normalized = normalizeRaw(e.target.value);
               if (normalized !== e.target.value) {
@@ -95,11 +95,11 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
                 e.target.value = normalized;
               }
               update({
-                clickSpeed: clamp(parseRawNumber(normalized), 1, 500),
+                clickSpeed: clamp(parseRawNumber(normalized), 1, 99999),
               });
             }}
             onWheel={(e) =>
-              handleWheelStep(e, settings.clickSpeed, 1, 500, (next) =>
+              handleWheelStep(e, settings.clickSpeed, 1, 99999, (next) =>
                 update({ clickSpeed: next }),
               )
             }
