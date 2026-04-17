@@ -3,6 +3,8 @@
 A macOS port of [Blur-AutoClicker](https://github.com/Blur009/Blur-AutoClicker) by Blur009.  
 All Windows-specific APIs have been replaced with native macOS equivalents (Core Graphics, Carbon, Core Foundation).
 
+> **Apple Silicon (arm64) only.** Built and tested on macOS 12 Monterey and later.
+
 ---
 
 ## Requirements
@@ -27,14 +29,6 @@ npm install --save-dev @tauri-apps/cli
 npm pkg set scripts.tauri="tauri"
 ```
 
-### Generate app icons
-
-```bash
-mkdir -p src-tauri/icons
-sips -s format png --resampleWidth 1024 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns --out src-tauri/icons/icon.png
-npm run tauri icon src-tauri/icons/icon.png
-```
-
 ### Fix unused import in overlay.rs
 
 ```bash
@@ -52,12 +46,14 @@ The compiled app will be at:
 src-tauri/target/release/bundle/macos/BlurAutoClicker.app
 ```
 
-Open it:
+### Install to Applications
+
 ```bash
-open src-tauri/target/release/bundle/macos/
+rm -rf /Applications/BlurAutoClicker.app
+cp -r src-tauri/target/release/bundle/macos/BlurAutoClicker.app /Applications/
 ```
 
-Or run the binary directly:
+Or run the binary directly (no permissions popup, useful for testing):
 ```bash
 open src-tauri/target/release/BlurAutoClicker
 ```
@@ -104,22 +100,27 @@ npm pkg set scripts.tauri="tauri"
 
 ---
 
-### `failed to open icon .../src-tauri/icons/icon.png: No such file or directory`
+### App launches but shows a white screen / blank overlay
 
-**Cause:** The `icons/` folder doesn't exist in the repo — icons are generated locally and not committed.  
-**Fix:**
+**Cause:** The `.app` bundle was built with incorrect macOS bundle configuration (wrong targets, missing macOS-specific plist keys).  
+**Fix:** Make sure you are on the latest commit and do a clean rebuild:
 ```bash
-mkdir -p src-tauri/icons
-sips -s format png --resampleWidth 1024 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns --out src-tauri/icons/icon.png
-npm run tauri icon src-tauri/icons/icon.png
+git pull
+npm run tauri build
+rm -rf /Applications/BlurAutoClicker.app
+cp -r src-tauri/target/release/bundle/macos/BlurAutoClicker.app /Applications/
+```
+If the `.app` still fails, run the raw binary directly to confirm the build itself works:
+```bash
+open src-tauri/target/release/BlurAutoClicker
 ```
 
 ---
 
 ### `use of unresolved module or unlinked crate 'windows_targets'`
 
-**Cause:** You have an old local clone that still has the original Windows-only `worker.rs`. Your local files are outdated.  
-**Fix:** Wipe and re-clone so you get the latest fixed files:
+**Cause:** You have an old local clone that still has the original Windows-only `worker.rs`.  
+**Fix:** Wipe and re-clone:
 ```bash
 cd ~/Documents
 rm -rf Blur-AutoClickerMAC
@@ -139,6 +140,13 @@ sed -i '' 's/use crate::engine::mouse::{current_monitor_rects, current_virtual_s
 
 ---
 
+### `Error: A public key has been found, but no private key`
+
+**Cause:** The updater plugin requires a signing key to produce update artifacts. This does not affect the app itself.  
+**Fix:** Safe to ignore. The `.app` bundle is fully built and functional despite this error.
+
+---
+
 ### `zsh: number expected` / `zsh: unknown file attribute`
 
 **Cause:** You pasted a multi-line block that included `#` comment lines. Zsh treats `#` differently when pasted inline.  
@@ -151,6 +159,7 @@ sed -i '' 's/use crate::engine::mouse::{current_monitor_rects, current_virtual_s
 | File | Change |
 |---|---|
 | `src-tauri/Cargo.toml` | Removed `windows-sys`, `winreg`, `windows-targets` |
+| `src-tauri/tauri.conf.json` | Changed bundle target from `nsis` (Windows installer) to `app` (macOS bundle), added macOS icon formats and minimum system version |
 | `src-tauri/src/engine/mouse.rs` | Rewrote using `CGEventCreateMouseEvent`, `CGWarpMouseCursorPosition` (Core Graphics) |
 | `src-tauri/src/engine/worker.rs` | Removed `NtSetTimerResolution`, `QueryThreadCycleTime`, `windows_targets::link!` |
 | `src-tauri/src/engine/mod.rs` | Removed `NtSetTimerResolution` extern block — macOS kernel timer resolution is sufficient |
