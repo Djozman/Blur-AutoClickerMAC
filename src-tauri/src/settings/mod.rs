@@ -82,7 +82,7 @@ impl Default for ClickerSettings {
             explanation_mode: "text".to_string(),
             last_panel: "simple".to_string(),
             show_stop_reason: true,
-            show_stop_overlay: true,
+            show_stop_overlay: false,
             strict_hotkey_modifiers: false,
         }
     }
