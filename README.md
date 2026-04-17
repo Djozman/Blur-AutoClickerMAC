@@ -9,30 +9,41 @@ All Windows-specific APIs have been replaced with native macOS equivalents (Core
 
 - macOS 12 Monterey or later
 - [Node.js](https://nodejs.org/) v18+
-- [Rust](https://rustup.rs/) (stable)
+- [Rust](https://rustup.rs/) (stable toolchain)
 - Xcode Command Line Tools — run `xcode-select --install` if not already installed
 
 ---
 
 ## Build from Source
 
+Run every command **one line at a time** in Terminal. Do not paste blocks with `#` comments — zsh will error on them.
+
 ```bash
-# 1. Clone the repo
+cd ~/Documents
 git clone https://github.com/Djozman/Blur-AutoClickerMAC.git
 cd Blur-AutoClickerMAC
-
-# 2. Install JS dependencies and register the Tauri build script
 npm install
+npm install --save-dev @tauri-apps/cli
 npm pkg set scripts.tauri="tauri"
+```
 
-# 3. Generate app icons (uses macOS built-in sips — no extra tools needed)
+### Generate app icons
+
+```bash
 mkdir -p src-tauri/icons
-sips -s format png --resampleWidth 1024 \
-  /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns \
-  --out src-tauri/icons/icon.png
+sips -s format png --resampleWidth 1024 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns --out src-tauri/icons/icon.png
 npm run tauri icon src-tauri/icons/icon.png
+```
 
-# 4. Build
+### Fix unused import in overlay.rs
+
+```bash
+sed -i '' 's/use crate::engine::mouse::{current_monitor_rects, current_virtual_screen_rect, VirtualScreenRect};/use crate::engine::mouse::{current_monitor_rects, current_virtual_screen_rect};/' src-tauri/src/overlay.rs
+```
+
+### Build
+
+```bash
 npm run tauri build
 ```
 
@@ -41,9 +52,14 @@ The compiled app will be at:
 src-tauri/target/release/bundle/macos/BlurAutoClicker.app
 ```
 
-Open it with:
+Open it:
 ```bash
 open src-tauri/target/release/bundle/macos/
+```
+
+Or run the binary directly:
+```bash
+open src-tauri/target/release/BlurAutoClicker
 ```
 
 ---
@@ -63,7 +79,74 @@ Restart the app after granting permissions.
 
 ---
 
-## What was changed from the Windows version
+## Errors You May Encounter
+
+### `cd: no such file or directory: /path/to/Blur-AutoClickerMAC`
+
+**Cause:** You copy-pasted the placeholder path literally instead of cloning first.  
+**Fix:**
+```bash
+cd ~/Documents
+git clone https://github.com/Djozman/Blur-AutoClickerMAC.git
+cd Blur-AutoClickerMAC
+```
+
+---
+
+### `npm error Missing script: "tauri"`
+
+**Cause:** The `tauri` script is not registered in `package.json` and/or `@tauri-apps/cli` is not installed.  
+**Fix:**
+```bash
+npm install --save-dev @tauri-apps/cli
+npm pkg set scripts.tauri="tauri"
+```
+
+---
+
+### `failed to open icon .../src-tauri/icons/icon.png: No such file or directory`
+
+**Cause:** The `icons/` folder doesn't exist in the repo — icons are generated locally and not committed.  
+**Fix:**
+```bash
+mkdir -p src-tauri/icons
+sips -s format png --resampleWidth 1024 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns --out src-tauri/icons/icon.png
+npm run tauri icon src-tauri/icons/icon.png
+```
+
+---
+
+### `use of unresolved module or unlinked crate 'windows_targets'`
+
+**Cause:** You have an old local clone that still has the original Windows-only `worker.rs`. Your local files are outdated.  
+**Fix:** Wipe and re-clone so you get the latest fixed files:
+```bash
+cd ~/Documents
+rm -rf Blur-AutoClickerMAC
+git clone https://github.com/Djozman/Blur-AutoClickerMAC.git
+cd Blur-AutoClickerMAC
+```
+
+---
+
+### `warning: unused import: VirtualScreenRect`
+
+**Cause:** A leftover import in `overlay.rs` from the Windows version.  
+**Fix:**
+```bash
+sed -i '' 's/use crate::engine::mouse::{current_monitor_rects, current_virtual_screen_rect, VirtualScreenRect};/use crate::engine::mouse::{current_monitor_rects, current_virtual_screen_rect};/' src-tauri/src/overlay.rs
+```
+
+---
+
+### `zsh: number expected` / `zsh: unknown file attribute`
+
+**Cause:** You pasted a multi-line block that included `#` comment lines. Zsh treats `#` differently when pasted inline.  
+**Fix:** Run commands **one line at a time**, never paste comment lines.
+
+---
+
+## What Was Changed from the Windows Version
 
 | File | Change |
 |---|---|
