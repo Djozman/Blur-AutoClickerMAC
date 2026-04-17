@@ -21,8 +21,10 @@
         "fullscreen": false,
         "decorations": false,
         "transparent": true,
+        "backgroundColor": "#00000000",
         "maximizable": false,
-        "shadow": false
+        "shadow": false,
+        "visible": false
       },
       {
         "label": "overlay",
@@ -48,15 +50,19 @@
         "https://github.com/Blur009/Blur-AutoClicker/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIyREY0RTc2QTU4Qjc1N0UKUldSK2RZdWxkazdmSW1IQmI4ZVMwOTRzWnBiVENhMFNYMFRtN0V4R3N0Q2JXQUdqM2t4VnRnNUYK"
-    },
-    "windows": {
-      "installMode": "passive"
     }
   },
   "bundle": {
     "active": true,
-    "targets": "nsis",
+    "targets": ["dmg", "app"],
     "createUpdaterArtifacts": true,
-    "icon": ["icons/icon.ico"]
+    "icon": [
+      "icons/icon.icns",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "12.0"
+    }
   }
 }
