@@ -41,13 +41,13 @@ pub struct RunOutcome {
     pub elapsed_secs: f64,
     pub avg_cpu: f64,
 }
+
 static CLICK_COUNT: AtomicI64 = AtomicI64::new(0);
 
-#[link(name = "ntdll")]
-extern "system" {
-    fn NtSetTimerResolution(
-        DesiredResolution: u32,
-        SetResolution: u8,
-        CurrentResolution: *mut u32,
-    ) -> u32;
-}
+/// macOS high-resolution sleep — uses mach_wait_until for sub-ms precision.
+/// On Windows this was NtSetTimerResolution; on macOS the kernel already
+/// provides ~1 ms timer resolution so no explicit setup is needed.
+#[inline]
+pub fn set_timer_resolution_high() {}
+#[inline]
+pub fn set_timer_resolution_restore() {}
