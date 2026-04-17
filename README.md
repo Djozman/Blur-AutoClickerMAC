@@ -24,9 +24,16 @@ All Windows-specific APIs have been replaced with native macOS equivalents (Core
 | Clicks per Second / Minute / Hour / Day | ✅ | ✅ |
 | Click stats overlay | ✅ | ✅ |
 | Light / Dark theme | ✅ | ✅ |
-| **Max CPS** | **✅ No hard limit** (99,999 cap) | ⚠️ ~500 CPS (Windows 1ms timer floor) |
+| **Max sustained 1:1 CPS** | **✅ ~2000 CPS** | ⚠️ ~500 CPS |
 
-> Windows enforces a ~1ms minimum timer resolution system-wide, capping practical click rates at around 500 CPS. macOS has no such limitation — the kernel timer resolution is sufficient to sustain far higher rates without special privileges.
+> **What "1:1 CPS" means:** the ratio of clicks shown in the UI vs. clicks actually registered by the OS. Windows enforces a ~1ms minimum timer resolution system-wide, which hard-caps consistent input delivery at around 500 CPS. macOS does not have this limitation — the kernel timer resolution is fine-grained enough to sustain far higher rates.
+>
+> That said, macOS is not unlimited. In practice, the highest tested cap where clicks remain consistently 1:1 is **~2000 CPS**. Above that, the OS begins dropping inputs and the ratio degrades. To stay as close to 1:1 as possible at high rates, **disable Duty Cycle and Speed Variation** — both introduce timing jitter that compounds the drop-off.
+>
+> *Screenshot — 2006.2 CPS personal best (Classic mode):*
+>
+> <!-- Add screenshot here: assets/personal-best-2006cps.png -->
+> <!-- Example: ![2006.2 CPS Personal Best](assets/personal-best-2006cps.png) -->
 
 ---
 
@@ -35,7 +42,31 @@ All Windows-specific APIs have been replaced with native macOS equivalents (Core
 - macOS 12 Monterey or later
 - [Node.js](https://nodejs.org/) v18+
 - [Rust](https://rustup.rs/) (stable toolchain)
-- Xcode Command Line Tools — run `xcode-select --install` if not already installed
+- Xcode Command Line Tools
+
+---
+
+## Install Dependencies
+
+### Xcode Command Line Tools
+```bash
+xcode-select --install
+```
+
+### Node.js (via [nvm](https://github.com/nvm-sh/nvm))
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+source ~/.zshrc
+nvm install --lts
+node -v
+```
+
+### Rust
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+rustc --version
+```
 
 ---
 
@@ -123,7 +154,7 @@ npm pkg set scripts.tauri="tauri"
 
 ### App launches but shows a white screen / blank overlay
 
-**Cause:** The `.app` bundle was built with incorrect macOS bundle configuration (wrong targets, missing macOS-specific plist keys).  
+**Cause:** The `.app` bundle was built with incorrect macOS bundle configuration.  
 **Fix:** Make sure you are on the latest commit and do a clean rebuild:
 ```bash
 git pull
@@ -180,7 +211,7 @@ sed -i '' 's/use crate::engine::mouse::{current_monitor_rects, current_virtual_s
 | File | Change |
 |---|---|
 | `src-tauri/Cargo.toml` | Removed `windows-sys`, `winreg`, `windows-targets` |
-| `src-tauri/tauri.conf.json` | Changed bundle target from `nsis` (Windows installer) to `app` (macOS bundle), added macOS icon formats and minimum system version |
+| `src-tauri/tauri.conf.json` | Changed bundle target from `nsis` to `app` (macOS bundle), added macOS icon formats and minimum system version |
 | `src-tauri/src/engine/mouse.rs` | Rewrote using `CGEventCreateMouseEvent`, `CGWarpMouseCursorPosition` (Core Graphics) |
 | `src-tauri/src/engine/worker.rs` | Removed `NtSetTimerResolution`, `QueryThreadCycleTime`, `windows_targets::link!` |
 | `src-tauri/src/engine/mod.rs` | Removed `NtSetTimerResolution` extern block — macOS kernel timer resolution is sufficient |
