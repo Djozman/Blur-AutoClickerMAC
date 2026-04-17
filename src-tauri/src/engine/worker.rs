@@ -356,11 +356,16 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
 
     let elapsed_secs = start_time.elapsed().as_secs_f64();
     let cpu_time_end = cpu_time_secs();
-    // DEBUG: hardcoded to 25.0 to verify display pipeline is not overriding the value
-    let _cpu_time_start = cpu_time_start;
-    let _cpu_time_end = cpu_time_end;
-    let _elapsed_secs = elapsed_secs;
-    let avg_cpu: f64 = 25.0;
+
+    // Compute real CPU% — cpu_used is thread CPU seconds, elapsed is wall seconds.
+    // Only valid if both measurements succeeded and elapsed is at least 1s.
+    let avg_cpu = if cpu_time_start >= 0.0 && cpu_time_end >= 0.0 && elapsed_secs >= 1.0 {
+        let cpu_used = (cpu_time_end - cpu_time_start).max(0.0);
+        let pct = (cpu_used / elapsed_secs) * 100.0;
+        pct.clamp(0.0, 98.0)
+    } else {
+        -1.0
+    };
 
     RunOutcome { stop_reason, click_count, elapsed_secs, avg_cpu }
 }
