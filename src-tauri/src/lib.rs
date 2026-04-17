@@ -17,55 +17,8 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
 const STATUS_EVENT: &str = "clicker-status";
 
-#[link(name = "ApplicationServices", kind = "framework")]
-extern "C" {
-    fn AXIsProcessTrustedWithOptions(options: *const std::ffi::c_void) -> bool;
-}
-
-#[link(name = "CoreFoundation", kind = "framework")]
-extern "C" {
-    fn CFDictionaryCreate(
-        allocator: *const std::ffi::c_void,
-        keys: *const *const std::ffi::c_void,
-        values: *const *const std::ffi::c_void,
-        num_values: isize,
-        key_callbacks: *const std::ffi::c_void,
-        value_callbacks: *const std::ffi::c_void,
-    ) -> *const std::ffi::c_void;
-    fn CFRelease(cf: *const std::ffi::c_void);
-    static kCFBooleanTrue: *const std::ffi::c_void;
-    static kCFTypeDictionaryKeyCallBacks: std::ffi::c_void;
-    static kCFTypeDictionaryValueCallBacks: std::ffi::c_void;
-}
-
-extern "C" {
-    static kAXTrustedCheckOptionPrompt: *const std::ffi::c_void;
-}
-
-fn request_accessibility_permission() {
-    unsafe {
-        // Build options dict: { kAXTrustedCheckOptionPrompt: kCFBooleanTrue }
-        let keys = [kAXTrustedCheckOptionPrompt];
-        let values = [kCFBooleanTrue];
-        let options = CFDictionaryCreate(
-            std::ptr::null(),
-            keys.as_ptr() as *const *const std::ffi::c_void,
-            values.as_ptr() as *const *const std::ffi::c_void,
-            1,
-            &kCFTypeDictionaryKeyCallBacks as *const _ as *const std::ffi::c_void,
-            &kCFTypeDictionaryValueCallBacks as *const _ as *const std::ffi::c_void,
-        );
-        AXIsProcessTrustedWithOptions(options);
-        CFRelease(options);
-    }
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Request Accessibility permission immediately — required for CGEventPost
-    // (synthetic mouse clicks). Without this the .app bundle clicks silently fail.
-    request_accessibility_permission();
-
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_shell::init())
