@@ -86,6 +86,10 @@
   -webkit-font-smoothing: antialiased;
 }
 
+html, body {
+  background: transparent;
+}
+
 body {
   color: var(--text-primary);
   font-family: 'DMSans', sans-serif;
