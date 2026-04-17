@@ -28,12 +28,16 @@ All Windows-specific APIs have been replaced with native macOS equivalents (Core
 
 > **What "1:1 CPS" means:** the ratio of clicks shown in the UI vs. clicks actually registered by the OS. Windows enforces a ~1ms minimum timer resolution system-wide, which hard-caps consistent input delivery at around 500 CPS. macOS does not have this limitation — the kernel timer resolution is fine-grained enough to sustain far higher rates.
 >
-> That said, macOS is not unlimited. In practice, the highest tested cap where clicks remain consistently 1:1 is **~2000 CPS**. Above that, the OS begins dropping inputs and the ratio degrades. To stay as close to 1:1 as possible at high rates, **disable Duty Cycle and Speed Variation** — both introduce timing jitter that compounds the drop-off.
+> That said, macOS is not unlimited. In practice, the highest tested cap where clicks remain consistently 1:1 is **~2000 CPS**. Above that, the OS begins dropping inputs and the ratio degrades.
 >
-> *Screenshot — 2006.2 CPS personal best (Classic mode):*
+> **For the best 1:1 accuracy at high CPS, disable both Duty Cycle and Speed Variation.** Both features introduce timing jitter that compounds input drop-off at high rates. The comparison below shows the difference:
 >
-> <!-- Add screenshot here: assets/personal-best-2006cps.png -->
-> <!-- Example: ![2006.2 CPS Personal Best](assets/personal-best-2006cps.png) -->
+> | Duty Cycle OFF · Speed Variation OFF | Duty Cycle ON · Speed Variation ON |
+> |:---:|:---:|
+> | <!-- Add screenshot: assets/cps-both-off.png --> | <!-- Add screenshot: assets/cps-both-on.png --> |
+> | `![Both off](assets/cps-both-off.png)` | `![Both on](assets/cps-both-on.png)` |
+>
+> *With both options disabled, the UI CPS and actual registered CPS stay 1:1. With them enabled, timing jitter causes measurable input drop at high rates.*
 
 ---
 
