@@ -45,23 +45,11 @@ pub fn run() {
                 );
             }
 
-            // Hide overlay window as soon as its WebView finishes loading.
-            // This is the only reliable way to suppress the initial white flash on macOS.
+            // Hide the overlay immediately and keep it hidden if macOS ever focuses it.
             if let Some(overlay_win) = app.get_webview_window("overlay") {
                 let _ = overlay_win.hide();
-                overlay_win.on_webview_event(|event| {
-                    // WebView fires this after the page is fully loaded — hide immediately.
-                    if let tauri::WebviewEvent::DomReady = event {
-                        // We can't access the window handle here directly, but
-                        // the window is already hidden from setup; this is a no-op guard.
-                    }
-                });
                 let hide_handle = overlay_win.clone();
                 overlay_win.on_window_event(move |event| {
-                    if let tauri::WindowEvent::ThemeChanged(_) = event {
-                        // no-op, just ensure window event listener is registered
-                    }
-                    // Keep hidden unless explicitly shown by show_overlay
                     if let tauri::WindowEvent::Focused(true) = event {
                         let _ = hide_handle.hide();
                     }
@@ -141,7 +129,6 @@ pub fn run() {
             } = &event
             {
                 if label == "overlay" {
-                    // Prevent overlay from closing when clicked/dismissed
                     return;
                 }
                 if label == "main" {
