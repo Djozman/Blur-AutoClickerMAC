@@ -24,23 +24,49 @@ All Windows-specific APIs have been replaced with native macOS equivalents (Core
 | Clicks per Second / Minute / Hour / Day | ✅ | ✅ |
 | Click stats overlay | ✅ | ✅ |
 | Light / Dark theme | ✅ | ✅ |
-| **Max sustained 1:1 CPS** | **✅ ~2000 CPS** | ⚠️ ~500 CPS |
+| **Max sustained 1:1 CPS** | **✅ ~5000 CPS** | ⚠️ ~500 CPS |
 
 > **What "1:1 CPS" means:** the ratio of clicks shown in the UI vs. clicks actually registered by the OS. Windows enforces a ~1ms minimum timer resolution system-wide, which hard-caps consistent input delivery at around 500 CPS. macOS does not have this limitation — the kernel timer resolution is fine-grained enough to sustain far higher rates.
 >
-> That said, macOS is not unlimited. In practice, the highest tested cap where clicks remain consistently 1:1 is **~2000 CPS**. Above that, the OS begins dropping inputs and the ratio degrades.
+> That said, macOS is not unlimited. In practice, the highest tested cap where clicks remain consistently 1:1 is **~5000 CPS**. Above that, the OS begins dropping inputs and the ratio degrades.
 
 **For the best 1:1 accuracy at high CPS, disable both Duty Cycle and Speed Variation.** Both features introduce timing jitter that compounds input drop-off at high rates. The comparison below shows the difference:
 
-**✅ Duty Cycle OFF · Speed Variation OFF — 1999.80 CPS (1:1)**
+**✅ Duty Cycle OFF · Speed Variation OFF — 5011.40 CPS (1:1)**
 
 ![Duty Cycle OFF, Speed Variation OFF](assets/cps-both-off.jpg)
 
-**⚠️ Duty Cycle ON · Speed Variation ON — 1746.90 CPS (degraded)**
+**⚠️ Duty Cycle ON · Speed Variation ON — 4864.00 CPS (degraded)**
 
 ![Duty Cycle ON, Speed Variation ON](assets/cps-both-on.jpg)
 
 *With both options disabled, the UI CPS and actual registered CPS stay 1:1. With them enabled, timing jitter causes measurable input drop at high rates.*
+
+---
+
+## ⚠️ CPU Usage
+
+CPU usage scales with CPS. Below are real recorded sessions on Apple Silicon:
+
+| Session | Total Clicks | Time | Avg CPU |
+|---|---|---|---|
+| ~5,000 CPS (high) | 780,117 | ~227s | ~6.6% |
+| ~800 CPS (mid) | 82,720 | ~103s | ~2.5% |
+| ~30 CPS (normal) | 1,914 | ~64s | ~0.7% |
+
+CPU usage becomes noticeable around **1,500 CPS**. Below **1,000 CPS** it stays low. At **100 CPS or under** (typical autoclicker range) the impact is negligible.
+
+**High CPS (~5,000 CPS) — ~6.6% CPU avg**
+
+![CPU usage at high CPS](assets/cpu-usage-high.jpg)
+
+**Mid CPS (~800 CPS) — ~2.5% CPU avg**
+
+![CPU usage at mid CPS](assets/cpu-usage-low.jpg)
+
+**Normal CPS (~30 CPS) — ~0.7% CPU avg**
+
+![CPU usage at normal CPS](assets/cpu-usage-normal.jpg)
 
 ---
 
