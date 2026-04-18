@@ -225,7 +225,7 @@ export default function AdvancedPanelLayout({
                     value={settings.clickSpeed}
                     onChange={(v) => update({ clickSpeed: v })}
                     min={1}
-                    max={2000}
+                    max={5000}
                   />
                 </div>
                 <span className="adv-label">Clicks Per</span>
@@ -634,7 +634,7 @@ export default function AdvancedPanelLayout({
                   value={settings.clickSpeed}
                   onChange={(v) => update({ clickSpeed: v })}
                   min={1}
-                  max={2000}
+                  max={5000}
                 />
               </div>
               <span className="adv-label">Clicks Per</span>
