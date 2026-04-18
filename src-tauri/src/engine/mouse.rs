@@ -61,7 +61,7 @@ const K_CG_OTHER_MOUSE_UP: u32 = 26;
 const K_CG_MOUSE_BUTTON_LEFT: u32 = 0;
 const K_CG_MOUSE_BUTTON_RIGHT: u32 = 1;
 const K_CG_MOUSE_BUTTON_CENTER: u32 = 2;
-const K_CG_HID_EVENT_TAP: u32 = 0;
+const K_CG_HID_EVENT_TAP: u32 = 1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VirtualScreenRect {
