@@ -1,0 +1,104 @@
+name: Release macOS
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v3.4.1)'
+        required: true
+
+jobs:
+  build-macos:
+    name: Build macOS (${{ matrix.target }})
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: aarch64
+          - target: x86_64-apple-darwin
+            arch: x86_64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --target ${{ matrix.target }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
+          if-no-files-found: warn
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: build-macos
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }} Release
+          body: |
+            # ${{ steps.version.outputs.tag }} macOS Release
+
+            ## 🍎 Installation
+            - Download the `.dmg` for your Mac:
+              - **Apple Silicon (M1/M2/M3):** `aarch64` build
+              - **Intel Mac:** `x86_64` build
+            - Open the `.dmg`, drag the app to your Applications folder
+            - If macOS blocks the app, go to **System Settings → Privacy & Security** and click **Open Anyway**
+
+            ---
+            > See the [Windows release](https://github.com/Blur009/Blur-AutoClicker/releases) for the full changelog.
+          files: artifacts/**/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
