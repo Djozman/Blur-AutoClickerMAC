@@ -37,13 +37,13 @@ jobs:
 
   rust:
     name: Rust (check + test)
-    runs-on: windows-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-pc-windows-msvc
+          targets: aarch64-apple-darwin
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -51,7 +51,7 @@ jobs:
 
       - name: Check
         working-directory: src-tauri
-        run: cargo check
+        run: cargo check --target aarch64-apple-darwin
 
       - name: Test
         working-directory: src-tauri
