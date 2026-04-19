@@ -37,7 +37,9 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          rm -f package-lock.json
+          npm install
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
