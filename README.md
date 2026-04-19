@@ -1,6 +1,6 @@
 # Blur AutoClicker — macOS Port
 
-![Downloads](https://img.shields.io/github/downloads/Djozman/Blur-AutoClickerMAC/total?label=DOWNLOADS&color=brightgreen&style=flat-square)
+[![Downloads](https://img.shields.io/github/downloads/Djozman/Blur-AutoClickerMAC/total?label=DOWNLOADS&color=brightgreen&style=flat-square)](https://github.com/Djozman/Blur-AutoClickerMAC/releases)
 
 A macOS port of [Blur-AutoClicker](https://github.com/Blur009/Blur-AutoClicker) by Blur009.  
 All Windows-specific APIs have been replaced with native macOS equivalents (Core Graphics, Carbon, Core Foundation).
