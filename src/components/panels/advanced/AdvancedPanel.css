@@ -164,6 +164,9 @@ input[type="number"]::-webkit-outer-spin-button {
   color: var(--text-primary);
   letter-spacing: -0.02em;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Divider */

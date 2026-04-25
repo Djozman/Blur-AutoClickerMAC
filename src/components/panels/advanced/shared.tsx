@@ -15,7 +15,7 @@ import { useTranslation } from "../../../i18n";
 import { normalizeIntegerRaw } from "../../../numberInput";
 import UnavailableReason from "../../UnavailableReason";
 
-// ToggleBtn ? These are here just for some visual space
+// ToggleBtn ← These are here just for some visual space
 
 export function ToggleBtn({
   value,
