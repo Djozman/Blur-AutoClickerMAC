@@ -21,33 +21,29 @@ export default function LimitsSection({ settings, update, showInfo }: Props) {
       : "clicks",
   );
 
-  useEffect(() => {
-    if (
-      settings.timeLimitEnabled &&
-      !settings.clickLimitEnabled &&
-      mode !== "time"
-    ) {
-      setMode("time");
-    } else if (
-      settings.clickLimitEnabled &&
-      !settings.timeLimitEnabled &&
-      mode !== "clicks"
-    ) {
-      setMode("clicks");
-    }
-  }, [settings.clickLimitEnabled, settings.timeLimitEnabled, mode]);
+  const selectedMode =
+    settings.timeLimitEnabled && !settings.clickLimitEnabled
+      ? "time"
+      : settings.clickLimitEnabled && !settings.timeLimitEnabled
+        ? "clicks"
+        : mode;
 
   useEffect(() => {
     if (settings.clickLimitEnabled && settings.timeLimitEnabled) {
-      if (mode === "clicks") {
+      if (selectedMode === "clicks") {
         update({ timeLimitEnabled: false });
       } else {
         update({ clickLimitEnabled: false });
       }
     }
-  }, [settings.clickLimitEnabled, settings.timeLimitEnabled, mode, update]);
+  }, [
+    settings.clickLimitEnabled,
+    settings.timeLimitEnabled,
+    selectedMode,
+    update,
+  ]);
 
-  const isClicksMode = mode === "clicks";
+  const isClicksMode = selectedMode === "clicks";
   const activeEnabled = isClicksMode
     ? settings.clickLimitEnabled
     : settings.timeLimitEnabled;

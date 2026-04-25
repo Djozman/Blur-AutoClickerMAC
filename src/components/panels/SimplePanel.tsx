@@ -116,6 +116,7 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
             type="button"
             className="simple-cycle-btn"
             title={t("simple.switchMode")}
+            aria-label={t("simple.switchMode")}
             onClick={(e) =>
               cycleWithClick(e, () =>
                 update({
@@ -142,6 +143,7 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
             type="button"
             className="simple-cycle-btn"
             title={t("simple.selectMouseButton")}
+            aria-label={t("simple.selectMouseButton")}
             onClick={(e) =>
               cycleWithClick(e, () =>
                 update({
@@ -175,6 +177,7 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
           <input
             type="number"
             title={t("simple.holdDescription")}
+            aria-label={t("simple.hold")}
             className="simple-inline-input numbervalue"
             style={{
               width: dynamicChWidth(settings.dutyCycle),
@@ -222,6 +225,7 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
           <input
             type="number"
             title={t("simple.randomizationDescription")}
+            aria-label={t("simple.randomization")}
             className="simple-inline-input numbervalue"
             style={{
               width: dynamicChWidth(settings.speedVariation),

@@ -51,7 +51,7 @@ function getPanelSize(tab: Tab, settings: Settings, hasUpdate: boolean) {
   }
   if (tab === "settings") return { width: 560, height: 720 + extra };
   if (tab === "zones") return { width: 860, height: 800 + extra };
-  return { width: 860, height: 500 + extra };
+  return { width: 860, height: 527 + extra };
 }
 
 const textScale = await invoke<number>("get_text_scale_factor");

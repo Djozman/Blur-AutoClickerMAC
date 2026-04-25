@@ -4,7 +4,7 @@ import { MOUSE_BUTTON_OPTIONS } from "../../../settingsSchema";
 import CadenceInput from "../../CadenceInput";
 import HotkeyCaptureInput from "../../HotkeyCaptureInput";
 import type { MouseButton } from "@tauri-apps/api/tray";
-import { InfoIcon } from "./shared";
+import { CardDivider, InfoIcon } from "./shared";
 
 interface Props {
   settings: Settings;
@@ -18,6 +18,21 @@ export default function CadenceSection({ settings, update, showInfo }: Props) {
 
   return (
     <div className="adv-sectioncontainer adv-basic-card">
+      <div className="adv-card-header adv-cadence-header">
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.5rem",
+          }}
+        >
+          {showInfo ? (
+            <InfoIcon text={t("advanced.cadenceDescription")} />
+          ) : null}
+          <span className="adv-card-title">{t("advanced.cadence")}</span>
+        </div>
+      </div>
+      <CardDivider />
       <CadenceInput
         settings={settings}
         update={update}

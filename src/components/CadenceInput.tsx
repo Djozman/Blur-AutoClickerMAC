@@ -240,7 +240,8 @@ export default function CadenceInput({ settings, update, variant }: Props) {
             <button
               type="button"
               className="simple-cycle-btn"
-              title="Change Click Interval"
+              title={t("simple.changeClickInterval")}
+              aria-label={t("simple.changeClickInterval")}
               onClick={() =>
                 update({
                   clickInterval: cycleOption(
@@ -323,6 +324,8 @@ export default function CadenceInput({ settings, update, variant }: Props) {
         <button
           type="button"
           className="simple-cycle-btn"
+          title={t("simple.switchRateInputMode")}
+          aria-label={t("simple.switchRateInputMode")}
           onClick={() =>
             switchMode(settings.rateInputMode === "rate" ? "duration" : "rate")
           }

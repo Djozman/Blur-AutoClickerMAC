@@ -44,7 +44,9 @@ export default function FailsafeSection({ settings, update, showInfo }: Props) {
               gap: "0.5rem",
             }}
           >
-            <InfoIcon text={t("advanced.cornerStopDescription")} />
+            {showInfo ? (
+              <InfoIcon text={t("advanced.cornerStopDescription")} />
+            ) : null}
             <span className="adv-card-title">{t("advanced.cornerStop")}</span>
           </div>
           <ToggleBtn

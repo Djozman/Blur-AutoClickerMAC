@@ -1,9 +1,9 @@
 {
   "language": {
     "en": "English",
-    "es": "Español",
-    "fr": "Français",
-    "ar": "العربية"
+    "es": "Espa?ol",
+    "fr": "Fran?ais",
+    "ar": "???????"
   },
   "common": {
     "on": "On",
@@ -27,8 +27,12 @@
     "close": "Close"
   },
   "settings": {
+    "sectionAbout": "About",
+    "sectionAboutDescription": "Version and project links.",
     "supportMe": "Support Me",
     "version": "Version",
+    "sectionUsage": "Usage",
+    "sectionUsageDescription": "Local run totals and history controls.",
     "usageData": "Your Usage Data",
     "usageDataDescription": "Your personal clicker stats, tracked locally.",
     "totalClicks": "Total Clicks",
@@ -38,6 +42,8 @@
     "noRuns": "No runs recorded yet",
     "clearStats": "Clear Stats",
     "clearStatsDescription": "Permanently delete all locally stored usage data.",
+    "sectionBehavior": "Window & Alerts",
+    "sectionBehaviorDescription": "Controls that affect app window behavior and stop feedback.",
     "alwaysOnTop": "Always on Top",
     "alwaysOnTopDescription": "Keep the app pinned above other windows.",
     "stopHitboxOverlay": "Stop Hitbox Overlay",
@@ -46,16 +52,24 @@
     "stopReasonAlertDescription": "Shows why the clicker stopped in the title bar.",
     "strictHotkeyModifiers": "Strict Hotkey Modifiers",
     "strictHotkeyModifiersDescription": "On: hotkey only fires when modifier keys match exactly. Off: extra held modifiers are ignored.",
+    "sectionStartup": "Startup",
+    "sectionStartupDescription": "Controls what happens when Windows starts or the window closes.",
     "language": "Language",
     "languageDescription": "Choose the app display language.",
     "minimizeToTray": "Minimize to Tray",
     "minimizeToTrayDescription": "When enabled, closing the window hides it to the system tray instead of quitting.",
     "runOnStartup": "Run on Startup",
     "runOnStartupDescription": "Automatically start BlurAutoClicker with Windows, minimized to tray.",
+    "sectionLanguage": "Language",
+    "sectionLanguageDescription": "Display language and text direction.",
+    "sectionAppearance": "Appearance",
+    "sectionAppearanceDescription": "Theme and accent color preferences.",
     "theme": "Theme",
     "themeDescription": "Switch between dark and light themes.",
     "accentColor": "Accent Color",
     "accentColorDescription": "Customize the primary accent used for active states.",
+    "sectionPresets": "Presets",
+    "sectionPresetsDescription": "Save, update, rename, or delete reusable clicker configurations.",
     "presets": "Presets",
     "presetsDescription": "Save and reuse named clicker configurations.",
     "presetNamePlaceholder": "Preset name",
@@ -71,16 +85,25 @@
     "presetUpdate": "Update",
     "presetRename": "Rename",
     "presetDelete": "Delete",
+    "sectionReset": "Reset",
+    "sectionResetDescription": "Destructive actions that restore defaults or clear local data.",
     "resetAll": "Reset All Settings",
-    "resetAllDescription": "Will reset all input fields and settings to the defaults."
+    "resetAllDescription": "Will reset all input fields and settings to the defaults.",
+    "resetDialogTitle": "Reset all settings?",
+    "resetDialogMessage": "All inputs, hotkeys, and preferences will return to their defaults. This can't be undone.",
+    "resetDialogConfirm": "Reset",
+    "clearStatsDialogTitle": "Clear usage data?",
+    "clearStatsDialogMessage": "Your total clicks, session count, time spent clicking, and CPU averages will be permanently erased.",
+    "clearStatsDialogConfirm": "Clear"
   },
   "simple": {
     "changeClickInterval": "Change Click Interval",
+    "switchRateInputMode": "Switch between Rate and Delay input",
     "switchMode": "Switch between hotkey Toggle and Hold mode",
     "selectMouseButton": "Select which mouse button gets clicked",
-    "hold": "Hold",
+    "hold": "Click Duration",
     "holdDescription": "How long the mouse button gets held down during each click",
-    "randomization": "Randomization",
+    "randomization": "Speed Variation",
     "randomizationDescription": "Randomly changes click speed in % range of set CPS"
   },
   "advanced": {

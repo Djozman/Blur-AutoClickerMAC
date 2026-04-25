@@ -82,6 +82,23 @@ function formatCpu(
   })}%`;
 }
 
+function SettingsSectionHeading({
+  title,
+  description,
+}: {
+  title: string;
+  description?: string;
+}) {
+  return (
+    <div className="settings-section-heading">
+      <span className="settings-section-title">{title}</span>
+      {description ? (
+        <span className="settings-section-description">{description}</span>
+      ) : null}
+    </div>
+  );
+}
+
 function PresetRow({
   preset,
   isActive,
@@ -367,7 +384,7 @@ export default function SettingsPanel({
       const next = await invoke<CumulativeStats>("reset_stats");
       setStats(next);
     } catch {
-      // swallow — failure leaves stats unchanged
+      // swallow ? failure leaves stats unchanged
     } finally {
       setResettingStats(false);
       setPendingAction(null);
@@ -377,6 +394,10 @@ export default function SettingsPanel({
   return (
     <div className="settings-wrapper">
       <div className="settings-panel" ref={panelRef} onScroll={handleScroll}>
+        <SettingsSectionHeading
+          title={t("settings.sectionAbout")}
+          description={t("settings.sectionAboutDescription")}
+        />
         <div className="social-links">
           <span className="settings-label">{t("settings.supportMe")}</span>
           <div className="social-icons">
@@ -461,6 +482,10 @@ export default function SettingsPanel({
 
         <div className="settings-divider" />
 
+        <SettingsSectionHeading
+          title={t("settings.sectionUsage")}
+          description={t("settings.sectionUsageDescription")}
+        />
         <div className="settings-row">
           <div className="settings-label-group">
             <span className="settings-label">{t("settings.usageData")}</span>
@@ -525,6 +550,10 @@ export default function SettingsPanel({
 
         <div className="settings-divider" />
 
+        <SettingsSectionHeading
+          title={t("settings.sectionBehavior")}
+          description={t("settings.sectionBehaviorDescription")}
+        />
         <div className="settings-row">
           <div className="settings-label-group">
             <span className="settings-label">{t("settings.alwaysOnTop")}</span>
@@ -613,6 +642,10 @@ export default function SettingsPanel({
 
         <div className="settings-divider" />
 
+        <SettingsSectionHeading
+          title={t("settings.sectionStartup")}
+          description={t("settings.sectionStartupDescription")}
+        />
         <div className="settings-row">
           <div className="settings-label-group">
             <span className="settings-label">
@@ -662,6 +695,10 @@ export default function SettingsPanel({
 
         <div className="settings-divider" />
 
+        <SettingsSectionHeading
+          title={t("settings.sectionLanguage")}
+          description={t("settings.sectionLanguageDescription")}
+        />
         <div className="settings-row">
           <div className="settings-label-group">
             <span className="settings-label">{t("settings.language")}</span>
@@ -684,6 +721,10 @@ export default function SettingsPanel({
 
         <div className="settings-divider" />
 
+        <SettingsSectionHeading
+          title={t("settings.sectionAppearance")}
+          description={t("settings.sectionAppearanceDescription")}
+        />
         <div className="settings-row">
           <div className="settings-label-group">
             <span className="settings-label">{t("settings.theme")}</span>
@@ -736,6 +777,10 @@ export default function SettingsPanel({
 
         <div className="settings-divider" />
 
+        <SettingsSectionHeading
+          title={t("settings.sectionPresets")}
+          description={t("settings.sectionPresetsDescription")}
+        />
         <div className="settings-row settings-row--stacked">
           <div className="settings-label-group">
             <span className="settings-label">{t("settings.presets")}</span>
@@ -826,6 +871,10 @@ export default function SettingsPanel({
 
         <div className="settings-divider" />
 
+        <SettingsSectionHeading
+          title={t("settings.sectionReset")}
+          description={t("settings.sectionResetDescription")}
+        />
         <div className="settings-row">
           <div className="settings-label-group">
             <span className="settings-label">{t("settings.resetAll")}</span>
@@ -846,18 +895,18 @@ export default function SettingsPanel({
       ></div>
       <ConfirmDialog
         open={pendingAction === "reset-settings"}
-        title="Reset all settings?"
-        message="All inputs, hotkeys, and preferences will return to their defaults. This can't be undone."
-        confirmLabel="Reset"
+        title={t("settings.resetDialogTitle")}
+        message={t("settings.resetDialogMessage")}
+        confirmLabel={t("settings.resetDialogConfirm")}
         busy={resetting}
         onConfirm={handleConfirmResetSettings}
         onCancel={() => setPendingAction(null)}
       />
       <ConfirmDialog
         open={pendingAction === "clear-stats"}
-        title="Clear usage data?"
-        message="Your total clicks, session count, time spent clicking, and CPU averages will be permanently erased."
-        confirmLabel="Clear"
+        title={t("settings.clearStatsDialogTitle")}
+        message={t("settings.clearStatsDialogMessage")}
+        confirmLabel={t("settings.clearStatsDialogConfirm")}
         busy={resettingStats}
         onConfirm={handleConfirmClearStats}
         onCancel={() => setPendingAction(null)}
