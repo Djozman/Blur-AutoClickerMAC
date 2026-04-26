@@ -144,7 +144,7 @@ export function NumInput({
     e.preventDefault();
     e.stopPropagation();
     const direction = e.deltaY < 0 ? 1 : -1;
-    const current = Number.isFinite(value) ? value : min ?? 0;
+    const current = Number.isFinite(value) ? value : (min ?? 0);
     onChange(clampValue(current + direction));
   };
 
@@ -320,12 +320,28 @@ export function AdvDropdown({
   const ref = useRef<HTMLDivElement>(null);
 
   const toggle = () => {
-    if (!open && ref.current) {
-      const rect = ref.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: rect.left });
-    }
-    setOpen(!open);
+    setOpen((prev) => !prev);
   };
+
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    const updatePosition = () => {
+      if (ref.current) {
+        const rect = ref.current.getBoundingClientRect();
+        setPos({ top: rect.bottom + 4, left: rect.left });
+      }
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -342,11 +358,7 @@ export function AdvDropdown({
 
   return (
     <div className="adv-dropdown" ref={ref}>
-      <button
-        type="button"
-        className="adv-dropdown-trigger"
-        onClick={toggle}
-      >
+      <button type="button" className="adv-dropdown-trigger" onClick={toggle}>
         <span>{activeLabel}</span>
         <svg
           width="10"
@@ -364,26 +376,33 @@ export function AdvDropdown({
           />
         </svg>
       </button>
-      {open && (
-        <div
-          className="adv-dropdown-menu"
-          style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}
-        >
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={`adv-dropdown-item ${option.value === value ? "active" : ""}`}
-              onClick={() => {
-                onChange(option.value);
-                setOpen(false);
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div
+            className="adv-dropdown-menu adv-dropdown-menu--portal"
+            style={{
+              position: "fixed",
+              top: pos.top,
+              left: pos.left,
+              zIndex: 9999,
+            }}
+          >
+            {options.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={`adv-dropdown-item ${option.value === value ? "active" : ""}`}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

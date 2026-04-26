@@ -50,7 +50,7 @@ function getPanelSize(tab: Tab, settings: Settings, hasUpdate: boolean) {
       : { width: 640, height: 175 + extra };
   }
   if (tab === "settings") return { width: 560, height: 720 + extra };
-  if (tab === "zones") return { width: 860, height: 800 + extra };
+  if (tab === "zones") return { width: 550, height: 400 + extra };
   return { width: 860, height: 527 + extra };
 }
 
