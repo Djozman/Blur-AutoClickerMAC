@@ -158,8 +158,10 @@
     "pickInProgressUnavailable": "La capture de position est déjà en cours. Attendez que le choix actuel se termine.",
     "pickCountdownUnavailable": "La capture de position commence dans {seconds} secondes. Déplacez votre curseur vers le point cible et attendez qu'il soit enregistré.",
     "pickCountdownSingularUnavailable": "La capture de position commence dans 1 seconde. Déplacez votre curseur vers le point cible et attendez qu'il soit enregistré.",
-    "sequenceAddingIn": "Adding in",
-    "sequenceCapturing": "Capturing..."
+    "sequenceAddingIn": "Ajout dans",
+    "sequenceCapturing": "Capture...",
+    "customStopZoneAddingIn": "Définition dans",
+    "customStopZoneCapturing": "Définition..."
   },
   "options": {
     "interval": { "s": "Seconde", "m": "Minute", "h": "Heure", "d": "Jour" },

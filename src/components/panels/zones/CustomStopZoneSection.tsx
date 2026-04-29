@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Settings } from "../../../store";
 import { useTranslation } from "../../../i18n";
 import { invoke } from "@tauri-apps/api/core";
@@ -9,8 +9,6 @@ import {
   CardDivider,
   InfoIcon,
 } from "../advanced/shared";
-
-// TODO: Needs to have a timer before picking the location of the cursor. say 3 seconds. In the future I would like an overlay approach to this but for now this timer thing is good enough.
 
 interface Props {
   settings: Settings;
@@ -23,6 +21,8 @@ interface CursorPoint {
   y: number;
 }
 
+type PendingCapture = "topLeft" | "bottomRight";
+
 export default function CustomStopZoneSection({
   settings,
   update,
@@ -30,37 +30,100 @@ export default function CustomStopZoneSection({
 }: Props) {
   const { t } = useTranslation();
   const [capturingCursor, setCapturingCursor] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [pendingCapture, setPendingCapture] = useState<PendingCapture | null>(
+    null,
+  );
+  const pendingCaptureRef = useRef<PendingCapture | null>(null);
+  const latestZoneRef = useRef({
+    x: settings.customStopZoneX,
+    y: settings.customStopZoneY,
+  });
 
-  const requestCursorPosition = async (): Promise<CursorPoint> => {
+  const requestCursorPosition = useCallback(async (): Promise<CursorPoint> => {
     setCapturingCursor(true);
     try {
       return await invoke<CursorPoint>("pick_position");
     } finally {
       setCapturingCursor(false);
     }
+  }, []);
+
+  useEffect(() => {
+    latestZoneRef.current = {
+      x: settings.customStopZoneX,
+      y: settings.customStopZoneY,
+    };
+  }, [settings.customStopZoneX, settings.customStopZoneY]);
+
+  useEffect(() => {
+    if (countdown === null || countdown < 0) return;
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  useEffect(() => {
+    if (countdown !== 0) return;
+
+    const captureAfterCountdown = async () => {
+      const action = pendingCaptureRef.current;
+      if (action === null) {
+        return;
+      }
+
+      try {
+        const point = await requestCursorPosition();
+
+        if (action === "topLeft") {
+          update({
+            customStopZoneX: point.x,
+            customStopZoneY: point.y,
+          });
+          return;
+        }
+
+        const { x, y } = latestZoneRef.current;
+        const left = Math.min(x, point.x);
+        const top = Math.min(y, point.y);
+        const right = Math.max(x, point.x);
+        const bottom = Math.max(y, point.y);
+
+        update({
+          customStopZoneX: left,
+          customStopZoneY: top,
+          customStopZoneWidth: right - left + 1,
+          customStopZoneHeight: bottom - top + 1,
+        });
+      } finally {
+        pendingCaptureRef.current = null;
+        setCountdown(null);
+        setPendingCapture(null);
+      }
+    };
+
+    void captureAfterCountdown();
+  }, [countdown, requestCursorPosition, update]);
+
+  const setCustomStopZoneTopLeft = () => {
+    pendingCaptureRef.current = "topLeft";
+    setPendingCapture("topLeft");
+    setCountdown(4);
   };
 
-  const setCustomStopZoneTopLeft = async () => {
-    const point = await requestCursorPosition();
-    update({
-      customStopZoneX: point.x,
-      customStopZoneY: point.y,
-    });
-  };
-
-  const setCustomStopZoneBottomRight = async () => {
-    const point = await requestCursorPosition();
-    const left = Math.min(settings.customStopZoneX, point.x);
-    const top = Math.min(settings.customStopZoneY, point.y);
-    const right = Math.max(settings.customStopZoneX, point.x);
-    const bottom = Math.max(settings.customStopZoneY, point.y);
-
-    update({
-      customStopZoneX: left,
-      customStopZoneY: top,
-      customStopZoneWidth: right - left + 1,
-      customStopZoneHeight: bottom - top + 1,
-    });
+  const setCustomStopZoneBottomRight = () => {
+    pendingCaptureRef.current = "bottomRight";
+    setPendingCapture("bottomRight");
+    setCountdown(4);
   };
 
   return (
@@ -128,21 +191,29 @@ export default function CustomStopZoneSection({
                 type="button"
                 className="adv-secondary-btn"
                 onClick={() => {
-                  void setCustomStopZoneTopLeft();
+                  setCustomStopZoneTopLeft();
                 }}
-                disabled={capturingCursor}
+                disabled={capturingCursor || countdown !== null}
               >
-                {t("advanced.customStopZoneSetTopLeft")}
+                {pendingCapture === "topLeft" && countdown !== null
+                  ? countdown === 0
+                    ? t("advanced.customStopZoneCapturing")
+                    : `${t("advanced.customStopZoneAddingIn")} ${countdown}...`
+                  : t("advanced.customStopZoneSetTopLeft")}
               </button>
               <button
                 type="button"
                 className="adv-secondary-btn"
                 onClick={() => {
-                  void setCustomStopZoneBottomRight();
+                  setCustomStopZoneBottomRight();
                 }}
-                disabled={capturingCursor}
+                disabled={capturingCursor || countdown !== null}
               >
-                {t("advanced.customStopZoneSetBottomRight")}
+                {pendingCapture === "bottomRight" && countdown !== null
+                  ? countdown === 0
+                    ? t("advanced.customStopZoneCapturing")
+                    : `${t("advanced.customStopZoneAddingIn")} ${countdown}...`
+                  : t("advanced.customStopZoneSetBottomRight")}
               </button>
             </div>
           </div>

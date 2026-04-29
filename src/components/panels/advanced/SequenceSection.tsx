@@ -92,14 +92,14 @@ export default function SequenceSection({
   const dragStateRef = useRef<DragState | null>(null);
   const moveFrameRef = useRef<number | null>(null);
 
-  const requestCursorPosition = async (): Promise<CursorPoint> => {
+  const requestCursorPosition = useCallback(async (): Promise<CursorPoint> => {
     setCapturingCursor(true);
     try {
       return await invoke<CursorPoint>("pick_position");
     } finally {
       setCapturingCursor(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (countdown === null || countdown < 0) return;

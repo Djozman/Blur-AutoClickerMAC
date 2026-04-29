@@ -158,7 +158,9 @@
     "pickCountdownUnavailable": "Position capture starts in {seconds} seconds. Move your cursor to the target spot and wait for it to be saved.",
     "pickCountdownSingularUnavailable": "Position capture starts in 1 second. Move your cursor to the target spot and wait for it to be saved.",
     "sequenceAddingIn": "Adding in",
-    "sequenceCapturing": "Capturing..."
+    "sequenceCapturing": "Capturing...",
+    "customStopZoneAddingIn": "Setting in",
+    "customStopZoneCapturing": "Setting..."
   },
   "options": {
     "interval": {
