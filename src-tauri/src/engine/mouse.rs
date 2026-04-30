@@ -1,15 +1,5 @@
 use std::time::Duration;
 
-use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    SendInput, INPUT, INPUT_MOUSE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP,
-    MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
-    MOUSEINPUT,
-};
-use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetSystemMetrics, SetCursorPos, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
-    SM_YVIRTUALSCREEN,
-};
-
 use super::rng::SmallRng;
 use super::worker::{sleep_interruptible, RunControl};
 
@@ -24,12 +14,7 @@ pub struct VirtualScreenRect {
 impl VirtualScreenRect {
     #[inline]
     pub fn new(left: i32, top: i32, width: i32, height: i32) -> Self {
-        Self {
-            left,
-            top,
-            width,
-            height,
-        }
+        Self { left, top, width, height }
     }
 
     #[inline]
@@ -58,82 +43,344 @@ impl VirtualScreenRect {
     }
 }
 
-pub fn current_cursor_position() -> Option<(i32, i32)> {
-    use windows_sys::Win32::Foundation::POINT;
-    use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+// ── Windows implementation ────────────────────────────────────────────────────
 
-    let mut point = POINT { x: 0, y: 0 };
-    let ok = unsafe { GetCursorPos(&mut point) };
-    if ok == 0 {
-        None
-    } else {
-        Some((point.x, point.y))
+#[cfg(target_os = "windows")]
+mod platform {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+        SendInput, INPUT, INPUT_MOUSE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP,
+        MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
+        MOUSEINPUT,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetSystemMetrics, SetCursorPos, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
+        SM_YVIRTUALSCREEN,
+    };
+
+    use super::VirtualScreenRect;
+
+    pub const MOUSE_LEFT_DOWN: u32 = MOUSEEVENTF_LEFTDOWN;
+    pub const MOUSE_LEFT_UP: u32 = MOUSEEVENTF_LEFTUP;
+    pub const MOUSE_RIGHT_DOWN: u32 = MOUSEEVENTF_RIGHTDOWN;
+    pub const MOUSE_RIGHT_UP: u32 = MOUSEEVENTF_RIGHTUP;
+    pub const MOUSE_MIDDLE_DOWN: u32 = MOUSEEVENTF_MIDDLEDOWN;
+    pub const MOUSE_MIDDLE_UP: u32 = MOUSEEVENTF_MIDDLEUP;
+
+    pub fn current_cursor_position() -> Option<(i32, i32)> {
+        use windows_sys::Win32::Foundation::POINT;
+        use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+
+        let mut point = POINT { x: 0, y: 0 };
+        let ok = unsafe { GetCursorPos(&mut point) };
+        if ok == 0 { None } else { Some((point.x, point.y)) }
     }
+
+    pub fn current_virtual_screen_rect() -> Option<VirtualScreenRect> {
+        let left = unsafe { GetSystemMetrics(SM_XVIRTUALSCREEN) };
+        let top = unsafe { GetSystemMetrics(SM_YVIRTUALSCREEN) };
+        let width = unsafe { GetSystemMetrics(SM_CXVIRTUALSCREEN) };
+        let height = unsafe { GetSystemMetrics(SM_CYVIRTUALSCREEN) };
+        if width <= 0 || height <= 0 { return None; }
+        Some(VirtualScreenRect::new(left, top, width, height))
+    }
+
+    pub fn current_monitor_rects() -> Option<Vec<VirtualScreenRect>> {
+        use std::ptr;
+        use windows_sys::Win32::Foundation::RECT;
+        use windows_sys::Win32::Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, MONITORINFO};
+
+        unsafe extern "system" fn enum_monitor_proc(
+            monitor: isize,
+            _hdc: isize,
+            _clip_rect: *mut RECT,
+            user_data: isize,
+        ) -> i32 {
+            let monitors = &mut *(user_data as *mut Vec<VirtualScreenRect>);
+            let mut info = std::mem::zeroed::<MONITORINFO>();
+            info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+            if GetMonitorInfoW(monitor, &mut info as *mut MONITORINFO as *mut _) == 0 {
+                return 1;
+            }
+            let rect = info.rcMonitor;
+            let width = rect.right - rect.left;
+            let height = rect.bottom - rect.top;
+            if width > 0 && height > 0 {
+                monitors.push(VirtualScreenRect::new(rect.left, rect.top, width, height));
+            }
+            1
+        }
+
+        let mut monitors = Vec::new();
+        let ok = unsafe {
+            EnumDisplayMonitors(
+                0,
+                ptr::null(),
+                Some(enum_monitor_proc),
+                &mut monitors as *mut Vec<VirtualScreenRect> as isize,
+            )
+        };
+        if ok == 0 || monitors.is_empty() {
+            return current_virtual_screen_rect().map(|screen| vec![screen]);
+        }
+        monitors.sort_by_key(|m: &VirtualScreenRect| (m.top, m.left));
+        Some(monitors)
+    }
+
+    pub fn move_mouse(x: i32, y: i32) {
+        unsafe { SetCursorPos(x, y) };
+    }
+
+    fn make_input(flags: u32, time: u32) -> INPUT {
+        INPUT {
+            r#type: INPUT_MOUSE,
+            Anonymous: windows_sys::Win32::UI::Input::KeyboardAndMouse::INPUT_0 {
+                mi: MOUSEINPUT {
+                    dx: 0,
+                    dy: 0,
+                    mouseData: 0,
+                    dwFlags: flags,
+                    time,
+                    dwExtraInfo: 0,
+                },
+            },
+        }
+    }
+
+    pub fn send_mouse_event(flags: u32) {
+        let input = make_input(flags, 0);
+        unsafe { SendInput(1, &input, std::mem::size_of::<INPUT>() as i32) };
+    }
+
+    pub fn send_batch(down: u32, up: u32, n: usize, _hold_ms: u32) {
+        let mut inputs: Vec<INPUT> = Vec::with_capacity(n * 2);
+        for _ in 0..n {
+            inputs.push(make_input(down, 0));
+            inputs.push(make_input(up, 0));
+        }
+        unsafe {
+            SendInput(
+                inputs.len() as u32,
+                inputs.as_ptr(),
+                std::mem::size_of::<INPUT>() as i32,
+            )
+        };
+    }
+}
+
+// ── macOS implementation ──────────────────────────────────────────────────────
+
+#[cfg(target_os = "macos")]
+mod platform {
+    use std::ffi::c_void;
+    use super::VirtualScreenRect;
+
+    // The u32 "flags" used throughout this module encode CGEventType values:
+    pub const MOUSE_LEFT_DOWN: u32 = 1;   // kCGEventLeftMouseDown
+    pub const MOUSE_LEFT_UP: u32 = 2;     // kCGEventLeftMouseUp
+    pub const MOUSE_RIGHT_DOWN: u32 = 3;  // kCGEventRightMouseDown
+    pub const MOUSE_RIGHT_UP: u32 = 4;    // kCGEventRightMouseUp
+    pub const MOUSE_MIDDLE_DOWN: u32 = 25; // kCGEventOtherMouseDown
+    pub const MOUSE_MIDDLE_UP: u32 = 26;  // kCGEventOtherMouseUp
+
+    const CG_MOUSE_BUTTON_LEFT: u32 = 0;
+    const CG_MOUSE_BUTTON_RIGHT: u32 = 1;
+    const CG_MOUSE_BUTTON_CENTER: u32 = 2;
+    const CG_HID_EVENT_TAP: u32 = 0;
+    const CG_EVENT_MOUSE_MOVED: u32 = 5;
+
+    #[repr(C)]
+    pub struct CGPoint {
+        pub x: f64,
+        pub y: f64,
+    }
+
+    #[repr(C)]
+    struct CGSize {
+        width: f64,
+        height: f64,
+    }
+
+    #[repr(C)]
+    struct CGRect {
+        origin: CGPoint,
+        size: CGSize,
+    }
+
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGEventCreate(source: *mut c_void) -> *mut c_void;
+        fn CGEventGetLocation(event: *mut c_void) -> CGPoint;
+        fn CGEventCreateMouseEvent(
+            source: *mut c_void,
+            mouse_type: u32,
+            mouse_cursor_position: CGPoint,
+            mouse_button: u32,
+        ) -> *mut c_void;
+        fn CGEventPost(tap: u32, event: *mut c_void);
+        fn CGDisplayBounds(display: u32) -> CGRect;
+        fn CGMainDisplayID() -> u32;
+        fn CGGetActiveDisplayList(
+            max_displays: u32,
+            active_displays: *mut u32,
+            display_count: *mut u32,
+        ) -> u32;
+        fn CGDisplayMoveCursorToPoint(display: u32, point: CGPoint);
+        fn CFRelease(cf: *mut c_void);
+    }
+
+    fn get_cursor_point() -> CGPoint {
+        unsafe {
+            let event = CGEventCreate(std::ptr::null_mut());
+            if event.is_null() {
+                return CGPoint { x: 0.0, y: 0.0 };
+            }
+            let point = CGEventGetLocation(event);
+            CFRelease(event);
+            point
+        }
+    }
+
+    pub fn current_cursor_position() -> Option<(i32, i32)> {
+        let p = get_cursor_point();
+        Some((p.x as i32, p.y as i32))
+    }
+
+    pub fn current_virtual_screen_rect() -> Option<VirtualScreenRect> {
+        unsafe {
+            let display = CGMainDisplayID();
+            let bounds = CGDisplayBounds(display);
+            let width = bounds.size.width as i32;
+            let height = bounds.size.height as i32;
+            if width <= 0 || height <= 0 { return None; }
+            Some(VirtualScreenRect::new(
+                bounds.origin.x as i32,
+                bounds.origin.y as i32,
+                width,
+                height,
+            ))
+        }
+    }
+
+    pub fn current_monitor_rects() -> Option<Vec<VirtualScreenRect>> {
+        unsafe {
+            let mut displays = [0u32; 16];
+            let mut count = 0u32;
+            let err = CGGetActiveDisplayList(16, displays.as_mut_ptr(), &mut count);
+            if err != 0 || count == 0 {
+                return current_virtual_screen_rect().map(|s| vec![s]);
+            }
+            let mut rects: Vec<VirtualScreenRect> = displays[..count as usize]
+                .iter()
+                .filter_map(|&display| {
+                    let bounds = CGDisplayBounds(display);
+                    let width = bounds.size.width as i32;
+                    let height = bounds.size.height as i32;
+                    if width > 0 && height > 0 {
+                        Some(VirtualScreenRect::new(
+                            bounds.origin.x as i32,
+                            bounds.origin.y as i32,
+                            width,
+                            height,
+                        ))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            rects.sort_by_key(|r: &VirtualScreenRect| (r.top, r.left));
+            Some(rects)
+        }
+    }
+
+    pub fn move_mouse(x: i32, y: i32) {
+        unsafe {
+            let point = CGPoint { x: x as f64, y: y as f64 };
+            let display = CGMainDisplayID();
+            CGDisplayMoveCursorToPoint(display, point);
+        }
+    }
+
+    pub fn send_mouse_event(event_type: u32) {
+        let pos = get_cursor_point();
+        let mouse_button = match event_type {
+            1 | 2 => CG_MOUSE_BUTTON_LEFT,
+            3 | 4 => CG_MOUSE_BUTTON_RIGHT,
+            _ => CG_MOUSE_BUTTON_CENTER,
+        };
+        unsafe {
+            let event = CGEventCreateMouseEvent(
+                std::ptr::null_mut(),
+                event_type,
+                pos,
+                mouse_button,
+            );
+            if !event.is_null() {
+                CGEventPost(CG_HID_EVENT_TAP, event);
+                CFRelease(event);
+            }
+        }
+    }
+
+    pub fn send_batch(down: u32, up: u32, n: usize, _hold_ms: u32) {
+        let pos = get_cursor_point();
+        let mouse_button = match down {
+            1 => CG_MOUSE_BUTTON_LEFT,
+            3 => CG_MOUSE_BUTTON_RIGHT,
+            _ => CG_MOUSE_BUTTON_CENTER,
+        };
+        unsafe {
+            for _ in 0..n {
+                let ev_down = CGEventCreateMouseEvent(
+                    std::ptr::null_mut(), down, CGPoint { x: pos.x, y: pos.y }, mouse_button,
+                );
+                if !ev_down.is_null() {
+                    CGEventPost(CG_HID_EVENT_TAP, ev_down);
+                    CFRelease(ev_down);
+                }
+                let ev_up = CGEventCreateMouseEvent(
+                    std::ptr::null_mut(), up, CGPoint { x: pos.x, y: pos.y }, mouse_button,
+                );
+                if !ev_up.is_null() {
+                    CGEventPost(CG_HID_EVENT_TAP, ev_up);
+                    CFRelease(ev_up);
+                }
+            }
+        }
+    }
+
+    // Used by smooth_move to post a mouse-moved event after CGDisplayMoveCursorToPoint
+    pub fn post_mouse_moved(x: i32, y: i32) {
+        let point = CGPoint { x: x as f64, y: y as f64 };
+        unsafe {
+            let event = CGEventCreateMouseEvent(
+                std::ptr::null_mut(),
+                CG_EVENT_MOUSE_MOVED,
+                point,
+                CG_MOUSE_BUTTON_LEFT,
+            );
+            if !event.is_null() {
+                CGEventPost(CG_HID_EVENT_TAP, event);
+                CFRelease(event);
+            }
+        }
+    }
+}
+
+// ── Public API (delegates to platform module) ─────────────────────────────────
+
+pub use platform::{MOUSE_LEFT_DOWN, MOUSE_LEFT_UP, MOUSE_RIGHT_DOWN, MOUSE_RIGHT_UP,
+                   MOUSE_MIDDLE_DOWN, MOUSE_MIDDLE_UP};
+
+pub fn current_cursor_position() -> Option<(i32, i32)> {
+    platform::current_cursor_position()
 }
 
 pub fn current_virtual_screen_rect() -> Option<VirtualScreenRect> {
-    let left = unsafe { GetSystemMetrics(SM_XVIRTUALSCREEN) };
-    let top = unsafe { GetSystemMetrics(SM_YVIRTUALSCREEN) };
-    let width = unsafe { GetSystemMetrics(SM_CXVIRTUALSCREEN) };
-    let height = unsafe { GetSystemMetrics(SM_CYVIRTUALSCREEN) };
-    if width <= 0 || height <= 0 {
-        return None;
-    }
-
-    Some(VirtualScreenRect::new(left, top, width, height))
+    platform::current_virtual_screen_rect()
 }
 
-#[cfg(target_os = "windows")]
 pub fn current_monitor_rects() -> Option<Vec<VirtualScreenRect>> {
-    use std::ptr;
-    use windows_sys::Win32::Foundation::RECT;
-    use windows_sys::Win32::Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, MONITORINFO};
-
-    unsafe extern "system" fn enum_monitor_proc(
-        monitor: isize,
-        _hdc: isize,
-        _clip_rect: *mut RECT,
-        user_data: isize,
-    ) -> i32 {
-        let monitors = &mut *(user_data as *mut Vec<VirtualScreenRect>);
-        let mut info = std::mem::zeroed::<MONITORINFO>();
-        info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
-
-        if GetMonitorInfoW(monitor, &mut info as *mut MONITORINFO as *mut _) == 0 {
-            return 1;
-        }
-
-        let rect = info.rcMonitor;
-        let width = rect.right - rect.left;
-        let height = rect.bottom - rect.top;
-        if width > 0 && height > 0 {
-            monitors.push(VirtualScreenRect::new(rect.left, rect.top, width, height));
-        }
-
-        1
-    }
-
-    let mut monitors = Vec::new();
-    let ok = unsafe {
-        EnumDisplayMonitors(
-            0,
-            ptr::null(),
-            Some(enum_monitor_proc),
-            &mut monitors as *mut Vec<VirtualScreenRect> as isize,
-        )
-    };
-
-    if ok == 0 || monitors.is_empty() {
-        return current_virtual_screen_rect().map(|screen| vec![screen]);
-    }
-
-    monitors.sort_by_key(|monitor: &VirtualScreenRect| (monitor.top, monitor.left));
-    Some(monitors)
-}
-
-#[cfg(not(target_os = "windows"))]
-pub fn current_monitor_rects() -> Option<Vec<VirtualScreenRect>> {
-    current_virtual_screen_rect().map(|screen| vec![screen])
+    platform::current_monitor_rects()
 }
 
 #[inline]
@@ -143,45 +390,16 @@ pub fn get_cursor_pos() -> (i32, i32) {
 
 #[inline]
 pub fn move_mouse(x: i32, y: i32) {
-    unsafe { SetCursorPos(x, y) };
-}
-
-#[inline]
-pub fn make_input(flags: u32, time: u32) -> INPUT {
-    INPUT {
-        r#type: INPUT_MOUSE,
-        Anonymous: windows_sys::Win32::UI::Input::KeyboardAndMouse::INPUT_0 {
-            mi: MOUSEINPUT {
-                dx: 0,
-                dy: 0,
-                mouseData: 0,
-                dwFlags: flags,
-                time,
-                dwExtraInfo: 0,
-            },
-        },
-    }
+    platform::move_mouse(x, y);
 }
 
 #[inline]
 pub fn send_mouse_event(flags: u32) {
-    let input = make_input(flags, 0);
-    unsafe { SendInput(1, &input, std::mem::size_of::<INPUT>() as i32) };
+    platform::send_mouse_event(flags);
 }
 
-pub fn send_batch(down: u32, up: u32, n: usize, _hold_ms: u32) {
-    let mut inputs: Vec<INPUT> = Vec::with_capacity(n * 2);
-    for _ in 0..n {
-        inputs.push(make_input(down, 0));
-        inputs.push(make_input(up, 0));
-    }
-    unsafe {
-        SendInput(
-            inputs.len() as u32,
-            inputs.as_ptr(),
-            std::mem::size_of::<INPUT>() as i32,
-        )
-    };
+pub fn send_batch(down: u32, up: u32, n: usize, hold_ms: u32) {
+    platform::send_batch(down, up, n, hold_ms);
 }
 
 fn dispatch_click<FSend, FSleep, FActive>(
@@ -257,9 +475,9 @@ pub fn send_clicks(
 #[inline]
 pub fn get_button_flags(button: i32) -> (u32, u32) {
     match button {
-        2 => (MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP),
-        3 => (MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP),
-        _ => (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP),
+        2 => (MOUSE_RIGHT_DOWN, MOUSE_RIGHT_UP),
+        3 => (MOUSE_MIDDLE_DOWN, MOUSE_MIDDLE_UP),
+        _ => (MOUSE_LEFT_DOWN, MOUSE_LEFT_UP),
     }
 }
 
@@ -313,10 +531,9 @@ pub fn smooth_move(
 
     for i in 0..=steps {
         let t = ease_in_out_quad(i as f64 / steps as f64);
-        move_mouse(
-            cubic_bezier(t, sx, cp1x, cp2x, ex) as i32,
-            cubic_bezier(t, sy, cp1y, cp2y, ey) as i32,
-        );
+        let mx = cubic_bezier(t, sx, cp1x, cp2x, ex) as i32;
+        let my = cubic_bezier(t, sy, cp1y, cp2y, ey) as i32;
+        move_mouse(mx, my);
         if i < steps {
             std::thread::sleep(step_dur);
         }
