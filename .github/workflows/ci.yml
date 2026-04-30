@@ -46,6 +46,9 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Build Tauri (Rust check)
         run: cargo build --manifest-path src-tauri/Cargo.toml --target ${{ matrix.target }}
