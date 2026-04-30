@@ -88,6 +88,29 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            // macOS: suppress overlay flash on startup
+            let suppress_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                for _ in 0..40 {
+                    if let Some(w) = suppress_handle.get_webview_window("overlay") {
+                        let _ = w.hide();
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                log::info!("[Overlay] Startup suppression complete");
+            });
+
+            // macOS: keep overlay hidden if ever focused
+            if let Some(overlay_win) = app.get_webview_window("overlay") {
+                let _ = overlay_win.hide();
+                let hide_handle = overlay_win.clone();
+                overlay_win.on_window_event(move |event| {
+                    if let tauri::WindowEvent::Focused(true) = event {
+                        let _ = hide_handle.hide();
+                    }
+                });
+            }
+
             let auto_hide_handle = app.handle().clone();
             std::thread::spawn(move || {
                 while crate::overlay::OVERLAY_THREAD_RUNNING

@@ -1,63 +1,132 @@
-name: Release
+name: Release macOS
 
 on:
   push:
     tags:
-      - "v*"
-
-permissions:
-  contents: write
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v3.5.0)'
+        required: true
 
 jobs:
-  release:
-    name: Build and release
-    runs-on: windows-latest
-    timeout-minutes: 30
+  build-macos:
+    name: Build macOS (${{ matrix.target }})
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: aarch64
+          - target: x86_64-apple-darwin
+            arch: x86_64
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 24
-          cache: npm
+          node-version: '20'
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-pc-windows-msvc
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workdir: src-tauri
+          targets: ${{ matrix.target }}
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          rm -f package-lock.json
+          npm install
 
-      - name: Build
+      - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: BlurAutoClicker ${{ github.ref_name }}
-          releaseBody: See CHANGELOG for details.
-          releaseDraft: true
+          tauriScript: npx tauri
+          args: --target ${{ matrix.target }}
 
-      - name: Create portable zip
-        shell: pwsh
+      - name: Rename tar.gz with arch suffix
         run: |
-          $exe = Get-ChildItem -Path "src-tauri/target/release" -Filter "BlurAutoClicker.exe" | Select-Object -First 1
-          if (-not $exe) { Write-Error "BlurAutoClicker.exe not found"; exit 1 }
-          $tag = "${{ github.ref_name }}"
-          $zipName = "BlurAutoClicker-${tag}-portable.zip"
-          Compress-Archive -Path $exe.FullName -DestinationPath $zipName
-          echo "ZIP_PATH=$zipName" >> $env:GITHUB_ENV
+          BUNDLE=src-tauri/target/${{ matrix.target }}/release/bundle/macos
+          for f in "$BUNDLE"/*.app.tar.gz; do
+            base=$(basename "$f" .app.tar.gz)
+            mv "$f" "$BUNDLE/${base}_${{ matrix.arch }}.app.tar.gz"
+          done
+          for f in "$BUNDLE"/*.app.tar.gz.sig; do
+            base=$(basename "$f" .app.tar.gz.sig)
+            mv "$f" "$BUNDLE/${base}_${{ matrix.arch }}.app.tar.gz.sig"
+          done
 
-      - name: Upload portable zip to release
-        shell: pwsh
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*_${{ matrix.arch }}.app.tar.gz
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*_${{ matrix.arch }}.app.tar.gz.sig
+          if-no-files-found: warn
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: build-macos
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }} Release
+          body: |
+            # ${{ steps.version.outputs.tag }} macOS Release
+
+            ## 🍎 Installation
+            - Download the `.dmg` for your Mac:
+              - **Apple Silicon (M1/M2/M3):** `aarch64` build
+              - **Intel Mac:** `x86_64` build
+            - Open the `.dmg`, drag the app to your Applications folder
+            - If macOS blocks the app, go to **System Settings → Privacy & Security** and click **Open Anyway**
+
+            ---
+
+            ## ⚠️ 'App is Damaged' Fix
+
+            If you see this message after installing:
+
+            ![Damaged warning](https://raw.githubusercontent.com/Djozman/Blur-AutoClickerMAC/main/assets/Damaged.png)
+
+            Open **Terminal** and run this command **once**:
+
+            ```bash
+            xattr -cr /Applications/BlurAutoClicker.app
+            ```
+
+            Then launch the app normally. You will **never need to do this again**.
+          files: artifacts/**/*
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload "${{ github.ref_name }}" "$env:ZIP_PATH" --clobber
