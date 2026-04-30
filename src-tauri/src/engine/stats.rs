@@ -45,9 +45,7 @@ fn stats_file_path() -> PathBuf {
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
-        PathBuf::from(".")
-            .join("BlurAutoClicker")
-            .join("stats.csv")
+        PathBuf::from(".").join("BlurAutoClicker").join("stats.csv")
     }
 }
 
