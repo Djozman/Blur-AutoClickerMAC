@@ -58,8 +58,12 @@ pub fn get_autostart_enabled() -> bool {
 
 #[cfg(target_os = "macos")]
 pub fn set_autostart_enabled(enabled: bool) -> io::Result<()> {
-    let path = launch_agent_path()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Could not locate ~/Library/LaunchAgents"))?;
+    let path = launch_agent_path().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            "Could not locate ~/Library/LaunchAgents",
+        )
+    })?;
 
     if enabled {
         let exe = std::env::current_exe()?;

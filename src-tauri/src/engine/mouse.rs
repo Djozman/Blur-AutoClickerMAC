@@ -14,7 +14,12 @@ pub struct VirtualScreenRect {
 impl VirtualScreenRect {
     #[inline]
     pub fn new(left: i32, top: i32, width: i32, height: i32) -> Self {
-        Self { left, top, width, height }
+        Self {
+            left,
+            top,
+            width,
+            height,
+        }
     }
 
     #[inline]
@@ -72,7 +77,11 @@ mod platform {
 
         let mut point = POINT { x: 0, y: 0 };
         let ok = unsafe { GetCursorPos(&mut point) };
-        if ok == 0 { None } else { Some((point.x, point.y)) }
+        if ok == 0 {
+            None
+        } else {
+            Some((point.x, point.y))
+        }
     }
 
     pub fn current_virtual_screen_rect() -> Option<VirtualScreenRect> {
@@ -80,14 +89,18 @@ mod platform {
         let top = unsafe { GetSystemMetrics(SM_YVIRTUALSCREEN) };
         let width = unsafe { GetSystemMetrics(SM_CXVIRTUALSCREEN) };
         let height = unsafe { GetSystemMetrics(SM_CYVIRTUALSCREEN) };
-        if width <= 0 || height <= 0 { return None; }
+        if width <= 0 || height <= 0 {
+            return None;
+        }
         Some(VirtualScreenRect::new(left, top, width, height))
     }
 
     pub fn current_monitor_rects() -> Option<Vec<VirtualScreenRect>> {
         use std::ptr;
         use windows_sys::Win32::Foundation::RECT;
-        use windows_sys::Win32::Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, MONITORINFO};
+        use windows_sys::Win32::Graphics::Gdi::{
+            EnumDisplayMonitors, GetMonitorInfoW, MONITORINFO,
+        };
 
         unsafe extern "system" fn enum_monitor_proc(
             monitor: isize,
@@ -171,16 +184,16 @@ mod platform {
 
 #[cfg(target_os = "macos")]
 mod platform {
-    use std::ffi::c_void;
     use super::VirtualScreenRect;
+    use std::ffi::c_void;
 
     // The u32 "flags" used throughout this module encode CGEventType values:
-    pub const MOUSE_LEFT_DOWN: u32 = 1;   // kCGEventLeftMouseDown
-    pub const MOUSE_LEFT_UP: u32 = 2;     // kCGEventLeftMouseUp
-    pub const MOUSE_RIGHT_DOWN: u32 = 3;  // kCGEventRightMouseDown
-    pub const MOUSE_RIGHT_UP: u32 = 4;    // kCGEventRightMouseUp
+    pub const MOUSE_LEFT_DOWN: u32 = 1; // kCGEventLeftMouseDown
+    pub const MOUSE_LEFT_UP: u32 = 2; // kCGEventLeftMouseUp
+    pub const MOUSE_RIGHT_DOWN: u32 = 3; // kCGEventRightMouseDown
+    pub const MOUSE_RIGHT_UP: u32 = 4; // kCGEventRightMouseUp
     pub const MOUSE_MIDDLE_DOWN: u32 = 25; // kCGEventOtherMouseDown
-    pub const MOUSE_MIDDLE_UP: u32 = 26;  // kCGEventOtherMouseUp
+    pub const MOUSE_MIDDLE_UP: u32 = 26; // kCGEventOtherMouseUp
 
     const CG_MOUSE_BUTTON_LEFT: u32 = 0;
     const CG_MOUSE_BUTTON_RIGHT: u32 = 1;
@@ -251,7 +264,9 @@ mod platform {
             let bounds = CGDisplayBounds(display);
             let width = bounds.size.width as i32;
             let height = bounds.size.height as i32;
-            if width <= 0 || height <= 0 { return None; }
+            if width <= 0 || height <= 0 {
+                return None;
+            }
             Some(VirtualScreenRect::new(
                 bounds.origin.x as i32,
                 bounds.origin.y as i32,
@@ -294,7 +309,10 @@ mod platform {
 
     pub fn move_mouse(x: i32, y: i32) {
         unsafe {
-            let point = CGPoint { x: x as f64, y: y as f64 };
+            let point = CGPoint {
+                x: x as f64,
+                y: y as f64,
+            };
             let display = CGMainDisplayID();
             CGDisplayMoveCursorToPoint(display, point);
         }
@@ -308,12 +326,8 @@ mod platform {
             _ => CG_MOUSE_BUTTON_CENTER,
         };
         unsafe {
-            let event = CGEventCreateMouseEvent(
-                std::ptr::null_mut(),
-                event_type,
-                pos,
-                mouse_button,
-            );
+            let event =
+                CGEventCreateMouseEvent(std::ptr::null_mut(), event_type, pos, mouse_button);
             if !event.is_null() {
                 CGEventPost(CG_HID_EVENT_TAP, event);
                 CFRelease(event);
@@ -331,14 +345,20 @@ mod platform {
         unsafe {
             for _ in 0..n {
                 let ev_down = CGEventCreateMouseEvent(
-                    std::ptr::null_mut(), down, CGPoint { x: pos.x, y: pos.y }, mouse_button,
+                    std::ptr::null_mut(),
+                    down,
+                    CGPoint { x: pos.x, y: pos.y },
+                    mouse_button,
                 );
                 if !ev_down.is_null() {
                     CGEventPost(CG_HID_EVENT_TAP, ev_down);
                     CFRelease(ev_down);
                 }
                 let ev_up = CGEventCreateMouseEvent(
-                    std::ptr::null_mut(), up, CGPoint { x: pos.x, y: pos.y }, mouse_button,
+                    std::ptr::null_mut(),
+                    up,
+                    CGPoint { x: pos.x, y: pos.y },
+                    mouse_button,
                 );
                 if !ev_up.is_null() {
                     CGEventPost(CG_HID_EVENT_TAP, ev_up);
@@ -350,7 +370,10 @@ mod platform {
 
     // Used by smooth_move to post a mouse-moved event after CGDisplayMoveCursorToPoint
     pub fn post_mouse_moved(x: i32, y: i32) {
-        let point = CGPoint { x: x as f64, y: y as f64 };
+        let point = CGPoint {
+            x: x as f64,
+            y: y as f64,
+        };
         unsafe {
             let event = CGEventCreateMouseEvent(
                 std::ptr::null_mut(),
@@ -368,8 +391,10 @@ mod platform {
 
 // ── Public API (delegates to platform module) ─────────────────────────────────
 
-pub use platform::{MOUSE_LEFT_DOWN, MOUSE_LEFT_UP, MOUSE_RIGHT_DOWN, MOUSE_RIGHT_UP,
-                   MOUSE_MIDDLE_DOWN, MOUSE_MIDDLE_UP};
+pub use platform::{
+    MOUSE_LEFT_DOWN, MOUSE_LEFT_UP, MOUSE_MIDDLE_DOWN, MOUSE_MIDDLE_UP, MOUSE_RIGHT_DOWN,
+    MOUSE_RIGHT_UP,
+};
 
 pub fn current_cursor_position() -> Option<(i32, i32)> {
     platform::current_cursor_position()

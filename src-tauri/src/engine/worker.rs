@@ -57,8 +57,13 @@ fn thread_cycles() -> u64 {
         fn clock_gettime(clk_id: i32, tp: *mut Timespec) -> i32;
     }
     const CLOCK_THREAD_CPUTIME_ID: i32 = 16;
-    let mut ts = Timespec { tv_sec: 0, tv_nsec: 0 };
-    unsafe { clock_gettime(CLOCK_THREAD_CPUTIME_ID, &mut ts); }
+    let mut ts = Timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
+    unsafe {
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &mut ts);
+    }
     ts.tv_sec as u64 * 1_000_000_000 + ts.tv_nsec as u64
 }
 
