@@ -26,13 +26,16 @@ use super::CLICK_COUNT;
 // changed from normal cpu measurement because it was not accurately
 // showing cpu usage for short clicker run times.
 
+#[cfg(target_os = "windows")]
 windows_targets::link!(
     "kernel32.dll" "system" fn QueryThreadCycleTime(thread: *mut core::ffi::c_void, cycles: *mut u64) -> i32
 );
+#[cfg(target_os = "windows")]
 windows_targets::link!(
     "kernel32.dll" "system" fn GetCurrentThread() -> *mut core::ffi::c_void
 );
 
+#[cfg(target_os = "windows")]
 #[inline]
 fn thread_cycles() -> u64 {
     let mut cycles: u64 = 0;
@@ -42,6 +45,23 @@ fn thread_cycles() -> u64 {
     cycles
 }
 
+#[cfg(not(target_os = "windows"))]
+#[inline]
+fn thread_cycles() -> u64 {
+    #[repr(C)]
+    struct Timespec {
+        tv_sec: i64,
+        tv_nsec: i64,
+    }
+    extern "C" {
+        fn clock_gettime(clk_id: i32, tp: *mut Timespec) -> i32;
+    }
+    const CLOCK_THREAD_CPUTIME_ID: i32 = 16;
+    let mut ts = Timespec { tv_sec: 0, tv_nsec: 0 };
+    unsafe { clock_gettime(CLOCK_THREAD_CPUTIME_ID, &mut ts); }
+    ts.tv_sec as u64 * 1_000_000_000 + ts.tv_nsec as u64
+}
+
 impl ClickerConfig {
     pub fn use_sequence(&self) -> bool {
         self.sequence_enabled && !self.sequence_points.is_empty()
@@ -49,6 +69,7 @@ impl ClickerConfig {
 }
 
 // Calibrates the CPU cycle frequency
+#[cfg(target_os = "windows")]
 fn calibrate_cycle_freq() -> f64 {
     let start_cycles = thread_cycles();
     let start = Instant::now();
@@ -68,6 +89,12 @@ fn calibrate_cycle_freq() -> f64 {
     } else {
         3_000_000_000.0 // fallback 3 GHz
     }
+}
+
+// On non-Windows, thread_cycles() returns nanoseconds so the "frequency" is fixed.
+#[cfg(not(target_os = "windows"))]
+fn calibrate_cycle_freq() -> f64 {
+    1_000_000_000.0
 }
 
 #[derive(Clone)]

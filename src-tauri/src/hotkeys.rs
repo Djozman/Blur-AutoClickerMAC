@@ -7,7 +7,104 @@ use crate::ClickerState;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tauri::Manager;
+
+// ── Platform-specific virtual-key constants ───────────────────────────────────
+
+#[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
+
+/// On macOS these map to CGKeyCode values (u16).
+/// Mouse-button codes use the range 0xFFF0–0xFFF4 (not real keycodes;
+/// handled specially in is_vk_down).
+#[cfg(target_os = "macos")]
+mod vk_codes {
+    pub const VK_CONTROL: u16 = 0x3B;  // left Control
+    pub const VK_MENU: u16 = 0x3A;     // Option / Alt
+    pub const VK_SHIFT: u16 = 0x38;    // left Shift
+    pub const VK_LWIN: u16 = 0x37;     // left Command
+    pub const VK_RWIN: u16 = 0x36;     // right Command
+
+    pub const VK_SPACE: u16 = 0x31;
+    pub const VK_TAB: u16 = 0x30;
+    pub const VK_RETURN: u16 = 0x24;
+    pub const VK_BACK: u16 = 0x33;
+    pub const VK_DELETE: u16 = 0x75;
+    pub const VK_INSERT: u16 = 0x72;   // Help key on Mac
+    pub const VK_HOME: u16 = 0x73;
+    pub const VK_END: u16 = 0x77;
+    pub const VK_PRIOR: u16 = 0x74;    // Page Up
+    pub const VK_NEXT: u16 = 0x79;     // Page Down
+    pub const VK_UP: u16 = 0x7E;
+    pub const VK_DOWN: u16 = 0x7D;
+    pub const VK_LEFT: u16 = 0x7B;
+    pub const VK_RIGHT: u16 = 0x7C;
+    pub const VK_ESCAPE: u16 = 0x35;
+    pub const VK_CAPITAL: u16 = 0x39;  // Caps Lock
+    pub const VK_NUMLOCK: u16 = 0x47;  // Clear on Mac numpad
+    pub const VK_SCROLL: u16 = 0xFF;   // no Scroll Lock on Mac
+    pub const VK_APPS: u16 = 0xFF;     // no Apps key on Mac
+    pub const VK_SNAPSHOT: u16 = 0xFF; // no Print Screen on Mac
+    pub const VK_PAUSE: u16 = 0xFF;    // no Pause on Mac
+
+    // OEM / punctuation (US ANSI layout)
+    pub const VK_OEM_2: u16 = 0x2C;      // /
+    pub const VK_OEM_5: u16 = 0x2A;      // backslash
+    pub const VK_OEM_1: u16 = 0x29;      // ;
+    pub const VK_OEM_7: u16 = 0x27;      // '
+    pub const VK_OEM_4: u16 = 0x21;      // [
+    pub const VK_OEM_6: u16 = 0x1E;      // ]
+    pub const VK_OEM_MINUS: u16 = 0x1B;  // -
+    pub const VK_OEM_PLUS: u16 = 0x18;   // =
+    pub const VK_OEM_3: u16 = 0x32;      // `
+    pub const VK_OEM_COMMA: u16 = 0x2B;  // ,
+    pub const VK_OEM_PERIOD: u16 = 0x2F; // .
+    pub const VK_OEM_102: u16 = 0x0A;    // IntlBackslash (non-US)
+
+    // Function keys (non-sequential on macOS)
+    pub const VK_F1: u16 = 0x7A;
+
+    // Numpad
+    pub const VK_NUMPAD0: u16 = 0x52;
+    pub const VK_NUMPAD1: u16 = 0x53;
+    pub const VK_NUMPAD2: u16 = 0x54;
+    pub const VK_NUMPAD3: u16 = 0x55;
+    pub const VK_NUMPAD4: u16 = 0x56;
+    pub const VK_NUMPAD5: u16 = 0x57;
+    pub const VK_NUMPAD6: u16 = 0x58;
+    pub const VK_NUMPAD7: u16 = 0x59;
+    pub const VK_NUMPAD8: u16 = 0x5B;
+    pub const VK_NUMPAD9: u16 = 0x5C;
+    pub const VK_ADD: u16 = 0x45;
+    pub const VK_SUBTRACT: u16 = 0x4E;
+    pub const VK_MULTIPLY: u16 = 0x43;
+    pub const VK_DIVIDE: u16 = 0x4B;
+    pub const VK_DECIMAL: u16 = 0x41;
+
+    // Mouse buttons encoded above the CGKeyCode range
+    pub const VK_LBUTTON: u16 = 0xFFF0;
+    pub const VK_RBUTTON: u16 = 0xFFF1;
+    pub const VK_MBUTTON: u16 = 0xFFF2;
+    pub const VK_XBUTTON1: u16 = 0xFFF3;
+    pub const VK_XBUTTON2: u16 = 0xFFF4;
+}
+
+#[cfg(target_os = "macos")]
+use vk_codes::*;
+
+// ── macOS key-state polling ───────────────────────────────────────────────────
+
+#[cfg(target_os = "macos")]
+mod macos_input {
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        pub fn CGEventSourceKeyState(state_id: i32, key: u16) -> bool;
+        pub fn CGEventSourceButtonState(state_id: i32, button: u32) -> bool;
+    }
+
+    pub const HID_SYSTEM_STATE: i32 = 1;
+}
+
+// ── Shared data types ─────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HotkeyBinding {
@@ -18,6 +115,8 @@ pub struct HotkeyBinding {
     pub main_vk: i32,
     pub key_token: String,
 }
+
+// ── Public hotkey API ─────────────────────────────────────────────────────────
 
 pub fn register_hotkey_inner(app: &AppHandle, hotkey: String) -> Result<String, String> {
     let binding = parse_hotkey_binding(&hotkey)?;
@@ -72,14 +171,7 @@ pub fn parse_hotkey_binding(hotkey: &str) -> Result<HotkeyBinding, String> {
     let (main_vk, key_token) =
         main_key.ok_or_else(|| format!("Invalid hotkey '{hotkey}': missing main key"))?;
 
-    Ok(HotkeyBinding {
-        ctrl,
-        alt,
-        shift,
-        super_key,
-        main_vk,
-        key_token,
-    })
+    Ok(HotkeyBinding { ctrl, alt, shift, super_key, main_vk, key_token })
 }
 
 pub fn parse_hotkey_main_key(token: &str, original_hotkey: &str) -> Result<(i32, String), String> {
@@ -88,15 +180,12 @@ pub fn parse_hotkey_main_key(token: &str, original_hotkey: &str) -> Result<(i32,
     if let Some(binding) = parse_named_key_token(&lower) {
         return Ok(binding);
     }
-
     if let Some(binding) = parse_mouse_button_token(&lower) {
         return Ok(binding);
     }
-
     if let Some(binding) = parse_numpad_token(&lower) {
         return Ok(binding);
     }
-
     if let Some(binding) = parse_function_key_token(&lower) {
         return Ok(binding);
     }
@@ -106,7 +195,6 @@ pub fn parse_hotkey_main_key(token: &str, original_hotkey: &str) -> Result<(i32,
             return parse_hotkey_main_key(letter, original_hotkey);
         }
     }
-
     if let Some(digit) = lower.strip_prefix("digit") {
         if digit.len() == 1 {
             return parse_hotkey_main_key(digit, original_hotkey);
@@ -114,39 +202,119 @@ pub fn parse_hotkey_main_key(token: &str, original_hotkey: &str) -> Result<(i32,
     }
 
     if lower.len() == 1 {
-        let ch = lower.as_bytes()[0];
+        let ch = lower.as_bytes()[0] as char;
         if ch.is_ascii_lowercase() {
-            return Ok((ch.to_ascii_uppercase() as i32, lower));
+            return letter_to_vk(ch)
+                .map(|vk| (vk, lower.clone()))
+                .ok_or_else(|| format!("Couldn't recognize '{token}' as a valid key in '{original_hotkey}'"));
         }
         if ch.is_ascii_digit() {
-            return Ok((ch as i32, lower));
+            return digit_to_vk(ch)
+                .map(|vk| (vk, lower.clone()))
+                .ok_or_else(|| format!("Couldn't recognize '{token}' as a valid key in '{original_hotkey}'"));
         }
     }
 
-    Err(format!(
-        "Couldn't recognize '{token}' as a valid key in '{original_hotkey}'"
-    ))
+    Err(format!("Couldn't recognize '{token}' as a valid key in '{original_hotkey}'"))
 }
 
-pub fn format_hotkey_binding(binding: &HotkeyBinding) -> String {
-    let mut parts: Vec<String> = Vec::new();
+// ── Platform-specific: letter → VK code ──────────────────────────────────────
 
-    if binding.ctrl {
-        parts.push(String::from("ctrl"));
-    }
-    if binding.alt {
-        parts.push(String::from("alt"));
-    }
-    if binding.shift {
-        parts.push(String::from("shift"));
-    }
-    if binding.super_key {
-        parts.push(String::from("super"));
-    }
-
-    parts.push(binding.key_token.clone());
-    parts.join("+")
+/// On Windows, VK_A…VK_Z equal the ASCII uppercase value.
+#[cfg(target_os = "windows")]
+fn letter_to_vk(ch: char) -> Option<i32> {
+    Some(ch.to_ascii_uppercase() as i32)
 }
+
+/// On macOS, letters map to CGKeyCode (ANSI US layout positions).
+#[cfg(target_os = "macos")]
+fn letter_to_vk(ch: char) -> Option<i32> {
+    let code: u16 = match ch {
+        'a' => 0x00, 's' => 0x01, 'd' => 0x02, 'f' => 0x03,
+        'h' => 0x04, 'g' => 0x05, 'z' => 0x06, 'x' => 0x07,
+        'c' => 0x08, 'v' => 0x09, 'b' => 0x0B, 'q' => 0x0C,
+        'w' => 0x0D, 'e' => 0x0E, 'r' => 0x0F, 'y' => 0x10,
+        't' => 0x11, 'o' => 0x1F, 'u' => 0x20, 'i' => 0x22,
+        'p' => 0x23, 'l' => 0x25, 'j' => 0x26, 'k' => 0x28,
+        'n' => 0x2D, 'm' => 0x2E,
+        _ => return None,
+    };
+    Some(code as i32)
+}
+
+/// On Windows, VK_0…VK_9 equal the ASCII digit value.
+#[cfg(target_os = "windows")]
+fn digit_to_vk(ch: char) -> Option<i32> {
+    Some(ch as i32)
+}
+
+/// On macOS, digit keys have their own CGKeyCodes.
+#[cfg(target_os = "macos")]
+fn digit_to_vk(ch: char) -> Option<i32> {
+    let code: u16 = match ch {
+        '1' => 0x12, '2' => 0x13, '3' => 0x14, '4' => 0x15,
+        '6' => 0x16, '5' => 0x17, '9' => 0x19, '7' => 0x1A,
+        '8' => 0x1C, '0' => 0x1D,
+        _ => return None,
+    };
+    Some(code as i32)
+}
+
+// ── Platform-specific: function key parsing ───────────────────────────────────
+
+/// Windows function keys are sequential from VK_F1.
+#[cfg(target_os = "windows")]
+fn parse_function_key_token(token: &str) -> Option<(i32, String)> {
+    if !token.starts_with('f') || token.len() > 3 {
+        return None;
+    }
+    let number = token[1..].parse::<i32>().ok()?;
+    let vk = match number {
+        1..=24 => VK_F1 as i32 + (number - 1),
+        _ => return None,
+    };
+    Some(binding(vk, token))
+}
+
+/// macOS function keys are non-sequential CGKeyCodes.
+#[cfg(target_os = "macos")]
+fn parse_function_key_token(token: &str) -> Option<(i32, String)> {
+    if !token.starts_with('f') || token.len() > 3 {
+        return None;
+    }
+    let number = token[1..].parse::<u32>().ok()?;
+    let vk: u16 = match number {
+        1  => 0x7A, 2  => 0x78, 3  => 0x63, 4  => 0x76,
+        5  => 0x60, 6  => 0x61, 7  => 0x62, 8  => 0x64,
+        9  => 0x65, 10 => 0x6D, 11 => 0x67, 12 => 0x6F,
+        13 => 0x69, 14 => 0x6B, 15 => 0x71, 16 => 0x6A,
+        17 => 0x40, 18 => 0x4F, 19 => 0x50, 20 => 0x5A,
+        _ => return None,
+    };
+    Some(binding(vk as i32, token))
+}
+
+// ── Platform-specific: is_vk_down ────────────────────────────────────────────
+
+#[cfg(target_os = "windows")]
+pub fn is_vk_down(vk: i32) -> bool {
+    unsafe { (GetAsyncKeyState(vk) as u16 & 0x8000) != 0 }
+}
+
+#[cfg(target_os = "macos")]
+pub fn is_vk_down(vk: i32) -> bool {
+    match vk as u16 {
+        0xFFF0 => unsafe { macos_input::CGEventSourceButtonState(macos_input::HID_SYSTEM_STATE, 0) },
+        0xFFF1 => unsafe { macos_input::CGEventSourceButtonState(macos_input::HID_SYSTEM_STATE, 1) },
+        0xFFF2 => unsafe { macos_input::CGEventSourceButtonState(macos_input::HID_SYSTEM_STATE, 2) },
+        0xFFF3 => unsafe { macos_input::CGEventSourceButtonState(macos_input::HID_SYSTEM_STATE, 3) },
+        0xFFF4 => unsafe { macos_input::CGEventSourceButtonState(macos_input::HID_SYSTEM_STATE, 4) },
+        0xFF   => false, // placeholder for keys with no Mac equivalent
+        key    => unsafe { macos_input::CGEventSourceKeyState(macos_input::HID_SYSTEM_STATE, key) },
+    }
+}
+
+// ── Hotkey listener / dispatcher ──────────────────────────────────────────────
 
 pub fn start_hotkey_listener(app: AppHandle) {
     std::thread::spawn(move || {
@@ -190,7 +358,6 @@ pub fn start_hotkey_listener(app: AppHandle) {
                     std::thread::sleep(Duration::from_millis(12));
                     continue;
                 }
-
                 app.state::<ClickerState>()
                     .suppress_hotkey_until_release
                     .store(false, Ordering::SeqCst);
@@ -223,7 +390,6 @@ pub fn handle_hotkey_pressed(app: &AppHandle) {
         let mode = state.settings.lock().unwrap().mode.clone();
         mode
     };
-
     if mode == "Toggle" {
         let _ = toggle_clicker_inner(app);
     } else if mode == "Hold" {
@@ -237,7 +403,6 @@ pub fn handle_hotkey_released(app: &AppHandle) {
         let mode = state.settings.lock().unwrap().mode.clone();
         mode
     };
-
     if mode == "Hold" {
         let _ = stop_clicker_inner(app, Some(String::from("Stopped from hold hotkey")));
     }
@@ -252,7 +417,6 @@ pub fn is_hotkey_binding_pressed(binding: &HotkeyBinding, strict: bool) -> bool 
     if !modifiers_match(binding, ctrl_down, alt_down, shift_down, super_down, strict) {
         return false;
     }
-
     is_vk_down(binding.main_vk)
 }
 
@@ -264,39 +428,30 @@ fn modifiers_match(
     super_down: bool,
     strict: bool,
 ) -> bool {
-    if binding.ctrl && !ctrl_down {
-        return false;
-    }
-    if binding.alt && !alt_down {
-        return false;
-    }
-    if binding.shift && !shift_down {
-        return false;
-    }
-    if binding.super_key && !super_down {
-        return false;
-    }
+    if binding.ctrl && !ctrl_down { return false; }
+    if binding.alt && !alt_down { return false; }
+    if binding.shift && !shift_down { return false; }
+    if binding.super_key && !super_down { return false; }
 
     if strict {
-        if ctrl_down && !binding.ctrl {
-            return false;
-        }
-        if alt_down && !binding.alt {
-            return false;
-        }
-        if shift_down && !binding.shift {
-            return false;
-        }
-        if super_down && !binding.super_key {
-            return false;
-        }
+        if ctrl_down && !binding.ctrl { return false; }
+        if alt_down && !binding.alt { return false; }
+        if shift_down && !binding.shift { return false; }
+        if super_down && !binding.super_key { return false; }
     }
-
     true
 }
 
-pub fn is_vk_down(vk: i32) -> bool {
-    unsafe { (GetAsyncKeyState(vk) as u16 & 0x8000) != 0 }
+// ── Shared key-token parsers ──────────────────────────────────────────────────
+
+pub fn format_hotkey_binding(binding: &HotkeyBinding) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if binding.ctrl      { parts.push(String::from("ctrl")); }
+    if binding.alt       { parts.push(String::from("alt")); }
+    if binding.shift     { parts.push(String::from("shift")); }
+    if binding.super_key { parts.push(String::from("super")); }
+    parts.push(binding.key_token.clone());
+    parts.join("+")
 }
 
 fn normalize_modifier_token(token: &str) -> Option<&'static str> {
@@ -318,38 +473,38 @@ fn parse_named_key_token(token: &str) -> Option<(i32, String)> {
         "<" | ">" | "intlbackslash" | "oem102" | "nonusbackslash" => {
             Some(binding(VK_OEM_102 as i32, "IntlBackslash"))
         }
-        "space" | "spacebar" => Some(binding(VK_SPACE as i32, "space")),
-        "tab" => Some(binding(VK_TAB as i32, "tab")),
-        "enter" | "return" => Some(binding(VK_RETURN as i32, "enter")),
-        "backspace" => Some(binding(VK_BACK as i32, "backspace")),
-        "delete" | "del" => Some(binding(VK_DELETE as i32, "delete")),
-        "insert" | "ins" => Some(binding(VK_INSERT as i32, "insert")),
-        "home" => Some(binding(VK_HOME as i32, "home")),
-        "end" => Some(binding(VK_END as i32, "end")),
-        "pageup" | "pgup" => Some(binding(VK_PRIOR as i32, "pageup")),
-        "pagedown" | "pgdn" => Some(binding(VK_NEXT as i32, "pagedown")),
-        "up" | "arrowup" => Some(binding(VK_UP as i32, "up")),
-        "down" | "arrowdown" => Some(binding(VK_DOWN as i32, "down")),
-        "left" | "arrowleft" => Some(binding(VK_LEFT as i32, "left")),
-        "right" | "arrowright" => Some(binding(VK_RIGHT as i32, "right")),
-        "esc" | "escape" => Some(binding(VK_ESCAPE as i32, "escape")),
-        "capslock" => Some(binding(VK_CAPITAL as i32, "capslock")),
-        "numlock" => Some(binding(VK_NUMLOCK as i32, "numlock")),
-        "scrolllock" => Some(binding(VK_SCROLL as i32, "scrolllock")),
+        "space" | "spacebar"   => Some(binding(VK_SPACE as i32, "space")),
+        "tab"                   => Some(binding(VK_TAB as i32, "tab")),
+        "enter" | "return"      => Some(binding(VK_RETURN as i32, "enter")),
+        "backspace"             => Some(binding(VK_BACK as i32, "backspace")),
+        "delete" | "del"        => Some(binding(VK_DELETE as i32, "delete")),
+        "insert" | "ins"        => Some(binding(VK_INSERT as i32, "insert")),
+        "home"                  => Some(binding(VK_HOME as i32, "home")),
+        "end"                   => Some(binding(VK_END as i32, "end")),
+        "pageup" | "pgup"       => Some(binding(VK_PRIOR as i32, "pageup")),
+        "pagedown" | "pgdn"     => Some(binding(VK_NEXT as i32, "pagedown")),
+        "up" | "arrowup"        => Some(binding(VK_UP as i32, "up")),
+        "down" | "arrowdown"    => Some(binding(VK_DOWN as i32, "down")),
+        "left" | "arrowleft"    => Some(binding(VK_LEFT as i32, "left")),
+        "right" | "arrowright"  => Some(binding(VK_RIGHT as i32, "right")),
+        "esc" | "escape"        => Some(binding(VK_ESCAPE as i32, "escape")),
+        "capslock"              => Some(binding(VK_CAPITAL as i32, "capslock")),
+        "numlock"               => Some(binding(VK_NUMLOCK as i32, "numlock")),
+        "scrolllock"            => Some(binding(VK_SCROLL as i32, "scrolllock")),
         "menu" | "apps" | "contextmenu" => Some(binding(VK_APPS as i32, "menu")),
         "printscreen" | "prtsc" | "snapshot" => Some(binding(VK_SNAPSHOT as i32, "printscreen")),
-        "pause" | "break" => Some(binding(VK_PAUSE as i32, "pause")),
-        "/" | "slash" => Some(binding(VK_OEM_2 as i32, "/")),
-        "\\" | "backslash" => Some(binding(VK_OEM_5 as i32, "\\")),
-        ";" | "semicolon" => Some(binding(VK_OEM_1 as i32, ";")),
+        "pause" | "break"       => Some(binding(VK_PAUSE as i32, "pause")),
+        "/" | "slash"           => Some(binding(VK_OEM_2 as i32, "/")),
+        "\\" | "backslash"      => Some(binding(VK_OEM_5 as i32, "\\")),
+        ";" | "semicolon"       => Some(binding(VK_OEM_1 as i32, ";")),
         "'" | "quote" | "apostrophe" => Some(binding(VK_OEM_7 as i32, "'")),
-        "[" | "bracketleft" => Some(binding(VK_OEM_4 as i32, "[")),
-        "]" | "bracketright" => Some(binding(VK_OEM_6 as i32, "]")),
-        "-" | "minus" => Some(binding(VK_OEM_MINUS as i32, "-")),
-        "=" | "equal" => Some(binding(VK_OEM_PLUS as i32, "=")),
+        "[" | "bracketleft"     => Some(binding(VK_OEM_4 as i32, "[")),
+        "]" | "bracketright"    => Some(binding(VK_OEM_6 as i32, "]")),
+        "-" | "minus"           => Some(binding(VK_OEM_MINUS as i32, "-")),
+        "=" | "equal"           => Some(binding(VK_OEM_PLUS as i32, "=")),
         "`" | "backquote" | "grave" => Some(binding(VK_OEM_3 as i32, "`")),
-        "," | "comma" => Some(binding(VK_OEM_COMMA as i32, ",")),
-        "." | "period" | "dot" => Some(binding(VK_OEM_PERIOD as i32, ".")),
+        "," | "comma"           => Some(binding(VK_OEM_COMMA as i32, ",")),
+        "." | "period" | "dot"  => Some(binding(VK_OEM_PERIOD as i32, ".")),
         _ => None,
     }
 }
@@ -405,20 +560,6 @@ fn parse_numpad_token(token: &str) -> Option<(i32, String)> {
     }
 }
 
-fn parse_function_key_token(token: &str) -> Option<(i32, String)> {
-    if !token.starts_with('f') || token.len() > 3 {
-        return None;
-    }
-
-    let number = token[1..].parse::<i32>().ok()?;
-    let vk = match number {
-        1..=24 => VK_F1 as i32 + (number - 1),
-        _ => return None,
-    };
-
-    Some(binding(vk, token))
-}
-
 #[cfg(test)]
 mod tests {
     use super::{format_hotkey_binding, modifiers_match, parse_hotkey_binding};
@@ -426,21 +567,9 @@ mod tests {
     #[test]
     fn numpad_tokens_round_trip() {
         for token in [
-            "numpad0",
-            "numpad1",
-            "numpad2",
-            "numpad3",
-            "numpad4",
-            "numpad5",
-            "numpad6",
-            "numpad7",
-            "numpad8",
-            "numpad9",
-            "numpadadd",
-            "numpadsubtract",
-            "numpadmultiply",
-            "numpaddivide",
-            "numpaddecimal",
+            "numpad0", "numpad1", "numpad2", "numpad3", "numpad4",
+            "numpad5", "numpad6", "numpad7", "numpad8", "numpad9",
+            "numpadadd", "numpadsubtract", "numpadmultiply", "numpaddivide", "numpaddecimal",
         ] {
             let hotkey = format!("ctrl+shift+{token}");
             let binding = parse_hotkey_binding(&hotkey).expect("token should parse");
