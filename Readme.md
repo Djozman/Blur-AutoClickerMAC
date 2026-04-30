@@ -7,6 +7,11 @@
 </div>
 <p align="center"><em>An accuracy and performance focused auto clicker</em></p>
 
+<div align="center">
+    <img src="assets/Damaged.png" width="600"/>
+</div>
+<p align="center"><em>Damaged state screenshot</em></p>
+
 
 ## Why I made it:
 
