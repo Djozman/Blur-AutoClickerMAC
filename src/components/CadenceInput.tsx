@@ -175,7 +175,7 @@ export default function CadenceInput({ settings, update, variant }: Props) {
               className="simple-inline-input simple-cadence-input"
               value={settings.clickSpeed}
               min={1}
-              max={500}
+              max={5000}
               aria-label={t("advanced.clicksPer")}
               onChange={(event) =>
                 handleNumberChange(event, (next) =>
@@ -183,12 +183,12 @@ export default function CadenceInput({ settings, update, variant }: Props) {
                 )
               }
               onBlur={(event) =>
-                handleNumberBlur(event, 1, 500, (next) =>
+                handleNumberBlur(event, 1, 5000, (next) =>
                   updateSimpleCadence({ clickSpeed: next }),
                 )
               }
               onWheel={(event) =>
-                handleWheelStep(event, settings.clickSpeed, 1, 500, (next) =>
+                handleWheelStep(event, settings.clickSpeed, 1, 5000, (next) =>
                   updateSimpleCadence({ clickSpeed: next }),
                 )
               }
@@ -314,7 +314,7 @@ export default function CadenceInput({ settings, update, variant }: Props) {
                   className="adv-number-sm"
                   value={settings.clickSpeed}
                   min={1}
-                  max={500}
+                  max={5000}
                   style={{ width: "40px", textAlign: "right" }}
                   onChange={(event) =>
                     handleNumberChange(event, (next) =>
@@ -322,7 +322,7 @@ export default function CadenceInput({ settings, update, variant }: Props) {
                     )
                   }
                   onBlur={(event) =>
-                    handleNumberBlur(event, 1, 500, (next) =>
+                    handleNumberBlur(event, 1, 5000, (next) =>
                       update({ clickSpeed: next }),
                     )
                   }
@@ -331,7 +331,7 @@ export default function CadenceInput({ settings, update, variant }: Props) {
                       event,
                       settings.clickSpeed,
                       1,
-                      500,
+                      5000,
                       (next) => update({ clickSpeed: next }),
                     )
                   }

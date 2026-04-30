@@ -459,7 +459,9 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
         };
         let hold_ms = (config.interval_secs * (config.duty.max(0.0) / 100.0) * 1000.0) as u32;
 
-        next_batch_time += Duration::from_secs_f64(batch_duration.max(0.001));
+        // Minimum interval floor of 0.1ms allows up to ~20,000 CPS (with batch_size=2).
+        // The previous 1ms floor hard-capped at 2000 CPS.
+        next_batch_time += Duration::from_secs_f64(batch_duration.max(0.0001));
 
         let remaining_clicks = if config.limit > 0 {
             (config.limit as i64 - click_count).max(0) as usize

@@ -75,24 +75,31 @@ export default function UpdateBanner({
       : undefined;
 
   return (
-    <div className="update-banner">
-      <span className="update-banner-text-old-version">v{currentVersion}</span>
-      <span className="update-banner-text">{t("update.to")}</span>
-      {/* does not need v for version, gets it from gitHub ↓  */}
-      <span className="update-banner-text-new-version">{latestVersion}</span>
-      {statusKey && (
-        <span className="update-banner-status" data-stage={stage}>
-          {t(statusKey)}
-        </span>
-      )}
+    <div className="update-banner" style={{ flexDirection: "column", alignItems: "stretch", gap: "6px", padding: "6px 10px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+        <span className="update-banner-text-old-version">v{currentVersion}</span>
+        <span className="update-banner-text">{t("update.to")}</span>
+        {/* does not need v for version, gets it from gitHub ↓  */}
+        <span className="update-banner-text-new-version">{latestVersion}</span>
+        {statusKey && (
+          <span className="update-banner-status" data-stage={stage}>
+            {t(statusKey)}
+          </span>
+        )}
+      </div>
       {stage === "restart-required" ? (
-        <button className="update-banner-btn" onClick={handleRestart}>
+        <button
+          className="update-banner-btn"
+          style={{ width: "100%", padding: "7px 0", fontSize: "0.95em", fontWeight: 600 }}
+          onClick={handleRestart}
+        >
           {t("update.restartToApply")}
         </button>
       ) : (
         <UnavailableReason reason={installDisabledReason}>
           <button
             className="update-banner-btn"
+            style={{ width: "100%", padding: "7px 0", fontSize: "0.95em", fontWeight: 600 }}
             onClick={handleUpdate}
             disabled={stage === "installing"}
           >

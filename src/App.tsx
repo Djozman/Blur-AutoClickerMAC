@@ -49,7 +49,7 @@ type DropdownOverflowDetail = {
 };
 
 function getPanelSize(tab: Tab, hasUpdate: boolean) {
-  const extra = hasUpdate ? 30 : 0;
+  const extra = hasUpdate ? 60 : 0;
   if (tab === "simple") {
     return { width: 650, height: 175 + extra };
   }
