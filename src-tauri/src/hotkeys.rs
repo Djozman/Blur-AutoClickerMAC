@@ -125,14 +125,16 @@ mod macos_event_tap {
             place: u32,
             options: u32,
             events_of_interest: u64,
-            callback: extern "C" fn(*mut std::ffi::c_void, u32, *mut std::ffi::c_void, *mut std::ffi::c_void) -> *mut std::ffi::c_void,
+            callback: extern "C" fn(
+                *mut std::ffi::c_void,
+                u32,
+                *mut std::ffi::c_void,
+                *mut std::ffi::c_void,
+            ) -> *mut std::ffi::c_void,
             user_info: *mut std::ffi::c_void,
         ) -> *mut std::ffi::c_void;
         fn CGEventTapEnable(tap: *mut std::ffi::c_void, enable: bool);
-        fn CGEventGetIntegerValueField(
-            event: *mut std::ffi::c_void,
-            field: u32,
-        ) -> i64;
+        fn CGEventGetIntegerValueField(event: *mut std::ffi::c_void, field: u32) -> i64;
     }
 
     #[link(name = "CoreFoundation", kind = "framework")]
@@ -238,8 +240,7 @@ mod macos_event_tap {
                 return;
             }
 
-            let source =
-                CFMachPortCreateRunLoopSource(std::ptr::null_mut(), tap, 0);
+            let source = CFMachPortCreateRunLoopSource(std::ptr::null_mut(), tap, 0);
             if source.is_null() {
                 log::warn!("[Hotkey] CFMachPortCreateRunLoopSource failed.");
                 return;
