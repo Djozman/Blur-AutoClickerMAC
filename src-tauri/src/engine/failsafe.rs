@@ -97,10 +97,23 @@ pub fn detect_failsafe(
     None
 }
 
+#[allow(dead_code)]
 pub fn should_stop_for_failsafe(config: &ClickerConfig) -> Option<String> {
     let cursor = current_cursor_position()?;
     let monitors = current_monitor_rects()?;
     detect_failsafe(cursor, &monitors, config)
+}
+
+pub fn should_stop_for_failsafe_at(
+    cursor_pos: (i32, i32),
+    monitors: &[VirtualScreenRect],
+    config: &ClickerConfig,
+) -> Option<String> {
+    detect_failsafe(cursor_pos, monitors, config)
+}
+
+pub fn get_cached_monitors() -> Vec<VirtualScreenRect> {
+    current_monitor_rects().unwrap_or_default()
 }
 
 #[cfg(test)]

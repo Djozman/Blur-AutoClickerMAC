@@ -107,7 +107,7 @@ export function convertDurationToRate(
 
 export function getEffectiveIntervalMs(settings: CadenceSettings): number {
   if (settings.rateInputMode === "duration") {
-    return Math.max(1, getDurationTotalMs(settings));
+    return Math.max(0.1, getDurationTotalMs(settings));
   }
 
   if (settings.clickSpeed <= 0) {
@@ -127,7 +127,7 @@ export function getEffectiveIntervalMs(settings: CadenceSettings): number {
     }
   })();
 
-  return Math.max(1, intervalMs);
+  return Math.max(0.1, intervalMs);
 }
 
 export function getEffectiveClicksPerSecond(settings: CadenceSettings): number {

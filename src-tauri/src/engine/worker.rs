@@ -11,9 +11,9 @@ use crate::ClickerState;
 use crate::ClickerStatusPayload;
 use crate::STATUS_EVENT;
 
-use super::failsafe::should_stop_for_failsafe;
+use super::failsafe::{should_stop_for_failsafe_at, get_cached_monitors};
 use super::mouse::{
-    get_button_flags, get_cursor_pos, move_mouse, send_clicks, smooth_move, VirtualScreenRect,
+    get_button_flags, get_cursor_pos, move_mouse, send_clicks_at, smooth_move, VirtualScreenRect,
 };
 use super::rng::SmallRng;
 use super::ClickerConfig;
@@ -358,8 +358,17 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
     } else {
         0.0
     };
-    let batch_size = if !config.double_click_enabled && cps >= 50.0 {
-        2usize
+    // Batch size keeps per-cycle time at ~2-5ms to balance CPU vs timing.
+    let batch_size = if !config.double_click_enabled {
+        if cps >= 2000.0 {
+            8usize // cycle ~4ms at 2000, ~2.7ms at 3000
+        } else if cps >= 1000.0 {
+            4usize // cycle ~4ms
+        } else if cps >= 200.0 {
+            2usize // cycle ~5ms
+        } else {
+            1usize
+        }
     } else {
         1usize
     };
@@ -378,6 +387,12 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
     };
     let mut next_batch_time = Instant::now();
     let mut stop_reason = String::from("Stopped");
+    let mut monitors = get_cached_monitors();
+    let mut failsafe_tick: u32 = 0;
+    // Only refresh monitors every 64 iterations when CPS > 100 to reduce CG overhead
+    let monitor_refresh_interval: u32 = if cps > 100.0 { 64 } else { 8 };
+    // Skip failsafe check every N iterations at high CPS to reduce CG overhead
+    let failsafe_skip: u32 = if cps > 100.0 { 3 } else { 1 };
 
     println!("Clicking at: {}, {}", target_x, target_y);
 
@@ -394,9 +409,20 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
     }
 
     while control.is_active() {
-        if let Some(reason) = should_stop_for_failsafe(&config) {
-            stop_reason = reason;
-            break;
+        // Query cursor once per iteration (reused by failsafe, cycle_target, send_clicks)
+        let cursor_now = get_cursor_pos();
+
+        // Failsafe check: skip some iterations at high CPS to reduce CG overhead
+        failsafe_tick += 1;
+        if failsafe_tick % failsafe_skip == 0 {
+            // Refresh monitor rects periodically (they rarely change)
+            if failsafe_tick % monitor_refresh_interval == 0 {
+                monitors = get_cached_monitors();
+            }
+            if let Some(reason) = should_stop_for_failsafe_at(cursor_now, &monitors, &config) {
+                stop_reason = reason;
+                break;
+            }
         }
 
         if config.limit > 0 && click_count >= config.limit as i64 {
@@ -409,7 +435,9 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
             break;
         }
 
-        cycle_target = current_cycle_target(&config, sequence_index);
+        if config.use_sequence() {
+            cycle_target = current_cycle_target(&config, sequence_index);
+        }
 
         let cycle_duration_base = batch_interval;
 
@@ -476,7 +504,7 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
             break;
         }
 
-        send_clicks(
+        send_clicks_at(
             down_flag,
             up_flag,
             clicks_this_cycle,
@@ -484,6 +512,7 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
             config.double_click_enabled,
             config.double_click_delay_ms,
             &control,
+            Some(cursor_now),
         );
 
         if !control.is_active() {
@@ -542,12 +571,100 @@ pub fn get_click_count() -> i64 {
     CLICK_COUNT.load(Ordering::Relaxed)
 }
 
+// -- macOS precise sleep via mach_wait_until --
+
+#[cfg(target_os = "macos")]
+mod timer {
+    use std::time::Duration;
+
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct MachTimebaseInfo {
+        numer: u32,
+        denom: u32,
+    }
+
+    extern "C" {
+        fn mach_absolute_time() -> u64;
+        fn mach_wait_until(deadline: u64) -> i32;
+        fn mach_timebase_info(info: *mut MachTimebaseInfo) -> i32;
+    }
+
+    fn timebase() -> MachTimebaseInfo {
+        static mut TB: MachTimebaseInfo = MachTimebaseInfo { numer: 0, denom: 0 };
+        static INIT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if !INIT.load(std::sync::atomic::Ordering::Acquire) {
+            unsafe { mach_timebase_info(&raw mut TB) };
+            INIT.store(true, std::sync::atomic::Ordering::Release);
+        }
+        unsafe { TB }
+    }
+
+    fn nanos_to_abs(nanos: u64) -> u64 {
+        let tb = timebase();
+        if tb.numer == 0 || tb.denom == 0 {
+            return nanos;
+        }
+        ((nanos as u128 * tb.denom as u128) / tb.numer as u128) as u64
+    }
+
+    pub fn sleep_precise(duration: Duration) {
+        if duration.is_zero() {
+            return;
+        }
+        let nanos = duration.as_nanos().min(u64::MAX as u128) as u64;
+        let abs_dur = nanos_to_abs(nanos);
+        unsafe {
+            let deadline = mach_absolute_time().saturating_add(abs_dur);
+            loop {
+                let now = mach_absolute_time();
+                if now >= deadline {
+                    break;
+                }
+                mach_wait_until(deadline);
+            }
+        }
+    }
+}
+
 pub fn sleep_interruptible(remaining: Duration, control: &RunControl) {
-    let tick = Duration::from_millis(5);
-    let start = Instant::now();
-    while control.is_active() && start.elapsed() < remaining {
-        let left = remaining.saturating_sub(start.elapsed());
-        std::thread::sleep(left.min(tick));
+    let deadline = Instant::now() + remaining;
+
+    // For sub-200µs delays, pure spin is the only precise option.
+    if remaining.as_micros() < 200 {
+        while control.is_active() && Instant::now() < deadline {
+            std::hint::spin_loop();
+        }
+        return;
+    }
+
+    // Hybrid: sleep the bulk precisely (mach_wait_until on macOS,
+    // std::thread::sleep elsewhere), then spin-loop the final 200µs.
+    // All checks use the absolute deadline — no time-tracking drift.
+    let spin_margin = Duration::from_micros(200);
+
+    loop {
+        if !control.is_active() {
+            return;
+        }
+        let now = Instant::now();
+        if now >= deadline {
+            return;
+        }
+        let left = deadline - now;
+        if left <= spin_margin {
+            while control.is_active() && Instant::now() < deadline {
+                std::hint::spin_loop();
+            }
+            return;
+        }
+
+        // Sleep in 2ms chunks, re-checking is_active() each time
+        let chunk = left.saturating_sub(spin_margin).min(Duration::from_millis(2));
+        #[cfg(target_os = "macos")]
+        timer::sleep_precise(chunk);
+        #[cfg(not(target_os = "macos"))]
+        std::thread::sleep(chunk);
     }
 }
 

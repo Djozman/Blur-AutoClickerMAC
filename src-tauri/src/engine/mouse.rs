@@ -202,6 +202,7 @@ mod platform {
     const CG_EVENT_MOUSE_MOVED: u32 = 5;
 
     #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct CGPoint {
         pub x: f64,
         pub y: f64,
@@ -337,6 +338,10 @@ mod platform {
 
     pub fn send_batch(down: u32, up: u32, n: usize, _hold_ms: u32) {
         let pos = get_cursor_point();
+        send_batch_at(pos, down, up, n);
+    }
+
+    pub fn send_batch_at(pos: CGPoint, down: u32, up: u32, n: usize) {
         let mouse_button = match down {
             1 => CG_MOUSE_BUTTON_LEFT,
             3 => CG_MOUSE_BUTTON_RIGHT,
@@ -347,7 +352,7 @@ mod platform {
                 let ev_down = CGEventCreateMouseEvent(
                     std::ptr::null_mut(),
                     down,
-                    CGPoint { x: pos.x, y: pos.y },
+                    pos,
                     mouse_button,
                 );
                 if !ev_down.is_null() {
@@ -357,7 +362,7 @@ mod platform {
                 let ev_up = CGEventCreateMouseEvent(
                     std::ptr::null_mut(),
                     up,
-                    CGPoint { x: pos.x, y: pos.y },
+                    pos,
                     mouse_button,
                 );
                 if !ev_up.is_null() {
@@ -457,7 +462,7 @@ where
     true
 }
 
-pub fn send_clicks(
+pub fn send_clicks_at(
     down: u32,
     up: u32,
     count: usize,
@@ -465,12 +470,23 @@ pub fn send_clicks(
     use_double_click_gap: bool,
     double_click_delay_ms: u32,
     control: &RunControl,
+    cursor_pos: Option<(i32, i32)>,
 ) {
     if count == 0 {
         return;
     }
 
     if !use_double_click_gap && count > 1 && hold_ms == 0 {
+        #[cfg(target_os = "macos")]
+        if let Some((x, y)) = cursor_pos {
+            platform::send_batch_at(
+                platform::CGPoint { x: x as f64, y: y as f64 },
+                down,
+                up,
+                count,
+            );
+            return;
+        }
         send_batch(down, up, count, hold_ms);
         return;
     }

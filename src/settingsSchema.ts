@@ -106,7 +106,7 @@ export const TIME_LIMIT_UNIT_OPTIONS = ["s", "m", "h"] as const satisfies Readon
 export const THEME_OPTIONS = ["dark", "light"] as const satisfies ReadonlyArray<Theme>;
 
 export const SETTINGS_LIMITS = {
-  clickSpeed: { min: 1, max: 500 },
+  clickSpeed: { min: 1, max: 10000 },
   dutyCycle: { min: 0, max: 100 },
   speedVariation: { min: 0, max: 200 },
   doubleClickDelay: { min: 20, max: 9999 },
