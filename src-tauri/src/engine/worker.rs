@@ -630,19 +630,19 @@ mod timer {
 pub fn sleep_interruptible(remaining: Duration, control: &RunControl) {
     let deadline = Instant::now() + remaining;
 
-    // For sub-200µs delays, pure spin is the only precise option.
-    if remaining.as_micros() < 200 {
+    // Only spin for sub-100us delays — below this, kernel calls cost more
+    // than just burning a few cycles.
+    if remaining.as_micros() < 100 {
         while control.is_active() && Instant::now() < deadline {
             std::hint::spin_loop();
         }
         return;
     }
 
-    // Hybrid: sleep the bulk precisely (mach_wait_until on macOS,
-    // std::thread::sleep elsewhere), then spin-loop the final 200µs.
-    // All checks use the absolute deadline — no time-tracking drift.
-    let spin_margin = Duration::from_micros(200);
-
+    // Sleep in 5ms chunks against the absolute deadline.  No spin margin —
+    // mach_wait_until (macOS) is precise enough, and the additive timing
+    // model (next_batch_time += interval) corrects any sub-ms drift.
+    let chunk = Duration::from_millis(5);
     loop {
         if !control.is_active() {
             return;
@@ -652,21 +652,10 @@ pub fn sleep_interruptible(remaining: Duration, control: &RunControl) {
             return;
         }
         let left = deadline - now;
-        if left <= spin_margin {
-            while control.is_active() && Instant::now() < deadline {
-                std::hint::spin_loop();
-            }
-            return;
-        }
-
-        // Sleep in 2ms chunks, re-checking is_active() each time
-        let chunk = left
-            .saturating_sub(spin_margin)
-            .min(Duration::from_millis(2));
         #[cfg(target_os = "macos")]
-        timer::sleep_precise(chunk);
+        timer::sleep_precise(left.min(chunk));
         #[cfg(not(target_os = "macos"))]
-        std::thread::sleep(chunk);
+        std::thread::sleep(left.min(chunk));
     }
 }
 
