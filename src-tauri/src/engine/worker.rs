@@ -11,7 +11,7 @@ use crate::ClickerState;
 use crate::ClickerStatusPayload;
 use crate::STATUS_EVENT;
 
-use super::failsafe::{should_stop_for_failsafe_at, get_cached_monitors};
+use super::failsafe::{get_cached_monitors, should_stop_for_failsafe_at};
 use super::mouse::{
     get_button_flags, get_cursor_pos, move_mouse, send_clicks_at, smooth_move, VirtualScreenRect,
 };
@@ -660,7 +660,9 @@ pub fn sleep_interruptible(remaining: Duration, control: &RunControl) {
         }
 
         // Sleep in 2ms chunks, re-checking is_active() each time
-        let chunk = left.saturating_sub(spin_margin).min(Duration::from_millis(2));
+        let chunk = left
+            .saturating_sub(spin_margin)
+            .min(Duration::from_millis(2));
         #[cfg(target_os = "macos")]
         timer::sleep_precise(chunk);
         #[cfg(not(target_os = "macos"))]

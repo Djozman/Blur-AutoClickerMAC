@@ -349,22 +349,13 @@ mod platform {
         };
         unsafe {
             for _ in 0..n {
-                let ev_down = CGEventCreateMouseEvent(
-                    std::ptr::null_mut(),
-                    down,
-                    pos,
-                    mouse_button,
-                );
+                let ev_down =
+                    CGEventCreateMouseEvent(std::ptr::null_mut(), down, pos, mouse_button);
                 if !ev_down.is_null() {
                     CGEventPost(CG_HID_EVENT_TAP, ev_down);
                     CFRelease(ev_down);
                 }
-                let ev_up = CGEventCreateMouseEvent(
-                    std::ptr::null_mut(),
-                    up,
-                    pos,
-                    mouse_button,
-                );
+                let ev_up = CGEventCreateMouseEvent(std::ptr::null_mut(), up, pos, mouse_button);
                 if !ev_up.is_null() {
                     CGEventPost(CG_HID_EVENT_TAP, ev_up);
                     CFRelease(ev_up);
@@ -480,7 +471,10 @@ pub fn send_clicks_at(
         #[cfg(target_os = "macos")]
         if let Some((x, y)) = cursor_pos {
             platform::send_batch_at(
-                platform::CGPoint { x: x as f64, y: y as f64 },
+                platform::CGPoint {
+                    x: x as f64,
+                    y: y as f64,
+                },
                 down,
                 up,
                 count,
