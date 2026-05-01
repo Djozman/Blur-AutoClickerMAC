@@ -3,6 +3,6 @@
 <plist version="1.0">
 <dict>
     <key>NSAccessibilityUsageDescription</key>
-    <string>BlurAutoClicker needs Accessibility access to simulate mouse clicks.</string>
+    <string>BlurAutoClicker needs Accessibility access to simulate mouse clicks and detect global keyboard shortcuts, even when running in the background.</string>
 </dict>
 </plist>

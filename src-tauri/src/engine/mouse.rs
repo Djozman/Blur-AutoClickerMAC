@@ -231,6 +231,7 @@ mod platform {
             mouse_button: u32,
         ) -> *mut c_void;
         fn CGEventPost(tap: u32, event: *mut c_void);
+        fn CGEventSourceCreate(state_id: i32) -> *mut c_void;
         fn CGDisplayBounds(display: u32) -> CGRect;
         fn CGMainDisplayID() -> u32;
         fn CGGetActiveDisplayList(
@@ -242,9 +243,19 @@ mod platform {
         fn CFRelease(cf: *mut c_void);
     }
 
+    fn event_source() -> *mut c_void {
+        static mut SRC: *mut c_void = std::ptr::null_mut();
+        unsafe {
+            if SRC.is_null() {
+                SRC = CGEventSourceCreate(1); // kCGEventSourceStateHIDSystemState
+            }
+            SRC
+        }
+    }
+
     fn get_cursor_point() -> CGPoint {
         unsafe {
-            let event = CGEventCreate(std::ptr::null_mut());
+            let event = CGEventCreate(event_source());
             if event.is_null() {
                 return CGPoint { x: 0.0, y: 0.0 };
             }
@@ -326,9 +337,9 @@ mod platform {
             3 | 4 => CG_MOUSE_BUTTON_RIGHT,
             _ => CG_MOUSE_BUTTON_CENTER,
         };
+        let src = event_source();
         unsafe {
-            let event =
-                CGEventCreateMouseEvent(std::ptr::null_mut(), event_type, pos, mouse_button);
+            let event = CGEventCreateMouseEvent(src, event_type, pos, mouse_button);
             if !event.is_null() {
                 CGEventPost(CG_HID_EVENT_TAP, event);
                 CFRelease(event);
@@ -347,15 +358,15 @@ mod platform {
             3 => CG_MOUSE_BUTTON_RIGHT,
             _ => CG_MOUSE_BUTTON_CENTER,
         };
+        let src = event_source();
         unsafe {
             for _ in 0..n {
-                let ev_down =
-                    CGEventCreateMouseEvent(std::ptr::null_mut(), down, pos, mouse_button);
+                let ev_down = CGEventCreateMouseEvent(src, down, pos, mouse_button);
                 if !ev_down.is_null() {
                     CGEventPost(CG_HID_EVENT_TAP, ev_down);
                     CFRelease(ev_down);
                 }
-                let ev_up = CGEventCreateMouseEvent(std::ptr::null_mut(), up, pos, mouse_button);
+                let ev_up = CGEventCreateMouseEvent(src, up, pos, mouse_button);
                 if !ev_up.is_null() {
                     CGEventPost(CG_HID_EVENT_TAP, ev_up);
                     CFRelease(ev_up);
@@ -467,7 +478,7 @@ pub fn send_clicks_at(
         return;
     }
 
-    if !use_double_click_gap && count > 1 && hold_ms == 0 {
+    if !use_double_click_gap && hold_ms == 0 {
         #[cfg(target_os = "macos")]
         if let Some((x, y)) = cursor_pos {
             platform::send_batch_at(

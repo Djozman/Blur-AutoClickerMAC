@@ -19,8 +19,11 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
 #[cfg(target_os = "macos")]
 mod vk_codes {
     pub const VK_CONTROL: u16 = 0x3B; // left Control
-    pub const VK_MENU: u16 = 0x3A; // Option / Alt
+    pub const VK_RCONTROL: u16 = 0x3E; // right Control
+    pub const VK_MENU: u16 = 0x3A; // left Option / Alt
+    pub const VK_RMENU: u16 = 0x3D; // right Option
     pub const VK_SHIFT: u16 = 0x38; // left Shift
+    pub const VK_RSHIFT: u16 = 0x3C; // right Shift
     pub const VK_LWIN: u16 = 0x37; // left Command
     pub const VK_RWIN: u16 = 0x36; // right Command
 
@@ -102,6 +105,161 @@ mod macos_input {
     }
 
     pub const HID_SYSTEM_STATE: i32 = 1;
+}
+
+// ── macOS CGEventTap-based key-state tracking (lock‑free) ────────────────────
+// On macOS 14+ (especially with M‑series chips), CGEventSourceKeyState with
+// kCGEventSourceStateHIDSystemState does NOT report key presses when the app is
+// not the frontmost process.  A CGEventTap fixes this because it hooks into the
+// HID event stream *before* the window server filters events by active Space.
+#[cfg(target_os = "macos")]
+mod macos_event_tap {
+    use super::macos_input;
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+    // ── CGEventTap FFI ────────────────────────────────────────────────────────
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGEventTapCreate(
+            tap: u32,
+            place: u32,
+            options: u32,
+            events_of_interest: u64,
+            callback: extern "C" fn(*mut std::ffi::c_void, u32, *mut std::ffi::c_void, *mut std::ffi::c_void) -> *mut std::ffi::c_void,
+            user_info: *mut std::ffi::c_void,
+        ) -> *mut std::ffi::c_void;
+        fn CGEventTapEnable(tap: *mut std::ffi::c_void, enable: bool);
+        fn CGEventGetIntegerValueField(
+            event: *mut std::ffi::c_void,
+            field: u32,
+        ) -> i64;
+    }
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    extern "C" {
+        fn CFMachPortCreateRunLoopSource(
+            allocator: *mut std::ffi::c_void,
+            port: *mut std::ffi::c_void,
+            order: i64,
+        ) -> *mut std::ffi::c_void;
+        fn CFRunLoopGetCurrent() -> *mut std::ffi::c_void;
+        fn CFRunLoopAddSource(
+            rl: *mut std::ffi::c_void,
+            source: *mut std::ffi::c_void,
+            mode: *mut std::ffi::c_void,
+        );
+        fn CFRunLoopRun();
+        fn CFRunLoopStop(rl: *mut std::ffi::c_void);
+        static kCFRunLoopCommonModes: *mut std::ffi::c_void;
+    }
+
+    // ── Constants ────────────────────────────────────────────────────────────
+    const KCG_HID_EVENT_TAP: u32 = 0;
+    const KCG_HEAD_INSERT_EVENT_TAP: u32 = 0;
+    const KCG_EVENT_TAP_OPTION_LISTEN_ONLY: u32 = 1;
+    const KCG_EVENT_KEY_DOWN: u32 = 10; // NX_KEYDOWN
+    const KCG_EVENT_KEY_UP: u32 = 11; // NX_KEYUP
+    const KCG_KEYBOARD_EVENT_KEYCODE: u32 = 9;
+
+    // ── Lock‑free key state (4 × AtomicU64 covering CGKeyCode 0…255) ─────────
+    static B0: AtomicU64 = AtomicU64::new(0); // keys   0… 63
+    static B1: AtomicU64 = AtomicU64::new(0); // keys  64…127
+    static B2: AtomicU64 = AtomicU64::new(0); // keys 128…191
+    static B3: AtomicU64 = AtomicU64::new(0); // keys 192…255
+    pub static ACTIVE: AtomicBool = AtomicBool::new(false);
+
+    fn set(code: u16, down: bool) {
+        let code = code as usize;
+        if code > 255 {
+            return;
+        }
+        let bucket = code / 64;
+        let mask = 1u64 << (code as u64 % 64);
+        let atom = match bucket {
+            0 => &B0,
+            1 => &B1,
+            2 => &B2,
+            3 => &B3,
+            _ => return,
+        };
+        if down {
+            atom.fetch_or(mask, Ordering::SeqCst);
+        } else {
+            atom.fetch_and(!mask, Ordering::SeqCst);
+        }
+    }
+
+    pub fn is_down(code: u16) -> bool {
+        let code = code as usize;
+        if code > 255 {
+            return false;
+        }
+        let bucket = code / 64;
+        let mask = 1u64 << (code as u64 % 64);
+        let atom = match bucket {
+            0 => &B0,
+            1 => &B1,
+            2 => &B2,
+            3 => &B3,
+            _ => return false,
+        };
+        (atom.load(Ordering::SeqCst) & mask) != 0
+    }
+
+    extern "C" fn callback(
+        _proxy: *mut std::ffi::c_void,
+        event_type: u32,
+        event: *mut std::ffi::c_void,
+        _user_info: *mut std::ffi::c_void,
+    ) -> *mut std::ffi::c_void {
+        let code = unsafe { CGEventGetIntegerValueField(event, KCG_KEYBOARD_EVENT_KEYCODE) } as u16;
+        set(code, event_type == KCG_EVENT_KEY_DOWN);
+        event // pass through
+    }
+
+    /// Spawn a background thread that creates a key‑event tap and updates the
+    /// atomic bitmap.  Returns immediately; the thread keeps running.
+    pub fn start() {
+        std::thread::spawn(|| unsafe {
+            let tap = CGEventTapCreate(
+                KCG_HID_EVENT_TAP,
+                KCG_HEAD_INSERT_EVENT_TAP,
+                KCG_EVENT_TAP_OPTION_LISTEN_ONLY,
+                (1u64 << KCG_EVENT_KEY_DOWN) | (1u64 << KCG_EVENT_KEY_UP),
+                callback,
+                std::ptr::null_mut(),
+            );
+
+            if tap.is_null() {
+                log::warn!(
+                    "[Hotkey] CGEventTapCreate failed – Accessibility permissions needed. \
+                     Polling fallback active."
+                );
+                return;
+            }
+
+            let source =
+                CFMachPortCreateRunLoopSource(std::ptr::null_mut(), tap, 0);
+            if source.is_null() {
+                log::warn!("[Hotkey] CFMachPortCreateRunLoopSource failed.");
+                return;
+            }
+
+            let rl = CFRunLoopGetCurrent();
+            CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
+            CGEventTapEnable(tap, true);
+
+            ACTIVE.store(true, Ordering::SeqCst);
+            log::info!("[Hotkey] Event tap active.");
+
+            CFRunLoopRun(); // blocks until CFRunLoopStop is called
+        });
+    }
+
+    // ── Mouse‑button state keeps using CGEventSourceButtonState ──────────────
+    pub fn is_mouse_down(button: u32) -> bool {
+        unsafe { macos_input::CGEventSourceButtonState(macos_input::HID_SYSTEM_STATE, button) }
+    }
 }
 
 // ── Shared data types ─────────────────────────────────────────────────────────
@@ -358,29 +516,31 @@ pub fn is_vk_down(vk: i32) -> bool {
 #[cfg(target_os = "macos")]
 pub fn is_vk_down(vk: i32) -> bool {
     match vk as u16 {
-        0xFFF0 => unsafe {
-            macos_input::CGEventSourceButtonState(macos_input::HID_SYSTEM_STATE, 0)
-        },
-        0xFFF1 => unsafe {
-            macos_input::CGEventSourceButtonState(macos_input::HID_SYSTEM_STATE, 1)
-        },
-        0xFFF2 => unsafe {
-            macos_input::CGEventSourceButtonState(macos_input::HID_SYSTEM_STATE, 2)
-        },
-        0xFFF3 => unsafe {
-            macos_input::CGEventSourceButtonState(macos_input::HID_SYSTEM_STATE, 3)
-        },
-        0xFFF4 => unsafe {
-            macos_input::CGEventSourceButtonState(macos_input::HID_SYSTEM_STATE, 4)
-        },
+        0xFFF0 => macos_event_tap::is_mouse_down(0),
+        0xFFF1 => macos_event_tap::is_mouse_down(1),
+        0xFFF2 => macos_event_tap::is_mouse_down(2),
+        0xFFF3 => macos_event_tap::is_mouse_down(3),
+        0xFFF4 => macos_event_tap::is_mouse_down(4),
         0xFF => false, // placeholder for keys with no Mac equivalent
-        key => unsafe { macos_input::CGEventSourceKeyState(macos_input::HID_SYSTEM_STATE, key) },
+        key => {
+            if macos_event_tap::ACTIVE.load(Ordering::SeqCst) {
+                macos_event_tap::is_down(key)
+            } else {
+                unsafe { macos_input::CGEventSourceKeyState(macos_input::HID_SYSTEM_STATE, key) }
+            }
+        }
     }
 }
 
 // ── Hotkey listener / dispatcher ──────────────────────────────────────────────
 
 pub fn start_hotkey_listener(app: AppHandle) {
+    // On macOS, try to start the CGEventTap for reliable background key tracking.
+    // This runs on its own thread and falls back to polling if Accessibility is
+    // not granted.
+    #[cfg(target_os = "macos")]
+    macos_event_tap::start();
+
     std::thread::spawn(move || {
         let mut was_pressed = false;
 
@@ -473,9 +633,9 @@ pub fn handle_hotkey_released(app: &AppHandle) {
 }
 
 pub fn is_hotkey_binding_pressed(binding: &HotkeyBinding, strict: bool) -> bool {
-    let ctrl_down = is_vk_down(VK_CONTROL as i32);
-    let alt_down = is_vk_down(VK_MENU as i32);
-    let shift_down = is_vk_down(VK_SHIFT as i32);
+    let ctrl_down = is_vk_down(VK_CONTROL as i32) || is_vk_down(VK_RCONTROL as i32);
+    let alt_down = is_vk_down(VK_MENU as i32) || is_vk_down(VK_RMENU as i32);
+    let shift_down = is_vk_down(VK_SHIFT as i32) || is_vk_down(VK_RSHIFT as i32);
     let super_down = is_vk_down(VK_LWIN as i32) || is_vk_down(VK_RWIN as i32);
 
     if !modifiers_match(binding, ctrl_down, alt_down, shift_down, super_down, strict) {

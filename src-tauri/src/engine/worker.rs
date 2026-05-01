@@ -361,13 +361,11 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
     // Batch size keeps per-cycle time at ~2-5ms to balance CPU vs timing.
     let batch_size = if !config.double_click_enabled {
         if cps >= 2000.0 {
-            8usize // cycle ~4ms at 2000, ~2.7ms at 3000
-        } else if cps >= 1000.0 {
-            4usize // cycle ~4ms
-        } else if cps >= 200.0 {
-            2usize // cycle ~5ms
+            8usize
+        } else if cps >= 500.0 {
+            4usize
         } else {
-            1usize
+            4usize
         }
     } else {
         1usize
@@ -389,9 +387,7 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
     let mut stop_reason = String::from("Stopped");
     let mut monitors = get_cached_monitors();
     let mut failsafe_tick: u32 = 0;
-    // Only refresh monitors every 64 iterations when CPS > 100 to reduce CG overhead
     let monitor_refresh_interval: u32 = if cps > 100.0 { 64 } else { 8 };
-    // Skip failsafe check every N iterations at high CPS to reduce CG overhead
     let failsafe_skip: u32 = if cps > 100.0 { 3 } else { 1 };
 
     println!("Clicking at: {}, {}", target_x, target_y);
@@ -409,10 +405,8 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
     }
 
     while control.is_active() {
-        // Query cursor once per iteration (reused by failsafe, cycle_target, send_clicks)
         let cursor_now = get_cursor_pos();
 
-        // Failsafe check: skip some iterations at high CPS to reduce CG overhead
         failsafe_tick += 1;
         if failsafe_tick % failsafe_skip == 0 {
             // Refresh monitor rects periodically (they rarely change)
@@ -630,8 +624,6 @@ mod timer {
 pub fn sleep_interruptible(remaining: Duration, control: &RunControl) {
     let deadline = Instant::now() + remaining;
 
-    // Only spin for sub-100us delays — below this, kernel calls cost more
-    // than just burning a few cycles.
     if remaining.as_micros() < 100 {
         while control.is_active() && Instant::now() < deadline {
             std::hint::spin_loop();
@@ -639,9 +631,6 @@ pub fn sleep_interruptible(remaining: Duration, control: &RunControl) {
         return;
     }
 
-    // Sleep in 5ms chunks against the absolute deadline.  No spin margin —
-    // mach_wait_until (macOS) is precise enough, and the additive timing
-    // model (next_batch_time += interval) corrects any sub-ms drift.
     let chunk = Duration::from_millis(5);
     loop {
         if !control.is_active() {
