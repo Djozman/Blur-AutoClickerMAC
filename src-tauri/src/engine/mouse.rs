@@ -198,7 +198,7 @@ mod platform {
     const CG_MOUSE_BUTTON_LEFT: u32 = 0;
     const CG_MOUSE_BUTTON_RIGHT: u32 = 1;
     const CG_MOUSE_BUTTON_CENTER: u32 = 2;
-    const CG_HID_EVENT_TAP: u32 = 0;
+    const CG_HID_EVENT_TAP: u32 = 1; // kCGSessionEventTap
     const CG_EVENT_MOUSE_MOVED: u32 = 5;
 
     #[repr(C)]
@@ -231,7 +231,6 @@ mod platform {
             mouse_button: u32,
         ) -> *mut c_void;
         fn CGEventPost(tap: u32, event: *mut c_void);
-        fn CGEventSourceCreate(state_id: i32) -> *mut c_void;
         fn CGDisplayBounds(display: u32) -> CGRect;
         fn CGMainDisplayID() -> u32;
         fn CGGetActiveDisplayList(
@@ -243,19 +242,14 @@ mod platform {
         fn CFRelease(cf: *mut c_void);
     }
 
-    fn event_source() -> *mut c_void {
-        static mut SRC: *mut c_void = std::ptr::null_mut();
-        unsafe {
-            if SRC.is_null() {
-                SRC = CGEventSourceCreate(1); // kCGEventSourceStateHIDSystemState
-            }
-            SRC
-        }
+    // mach_absolute_time – always linked via libSystem
+    extern "C" {
+        fn mach_absolute_time() -> u64;
     }
 
     fn get_cursor_point() -> CGPoint {
         unsafe {
-            let event = CGEventCreate(event_source());
+            let event = CGEventCreate(std::ptr::null_mut());
             if event.is_null() {
                 return CGPoint { x: 0.0, y: 0.0 };
             }
@@ -337,9 +331,9 @@ mod platform {
             3 | 4 => CG_MOUSE_BUTTON_RIGHT,
             _ => CG_MOUSE_BUTTON_CENTER,
         };
-        let src = event_source();
         unsafe {
-            let event = CGEventCreateMouseEvent(src, event_type, pos, mouse_button);
+            let event =
+                CGEventCreateMouseEvent(std::ptr::null_mut(), event_type, pos, mouse_button);
             if !event.is_null() {
                 CGEventPost(CG_HID_EVENT_TAP, event);
                 CFRelease(event);
@@ -358,20 +352,26 @@ mod platform {
             3 => CG_MOUSE_BUTTON_RIGHT,
             _ => CG_MOUSE_BUTTON_CENTER,
         };
-        let src = event_source();
         unsafe {
-            for _ in 0..n {
-                let ev_down = CGEventCreateMouseEvent(src, down, pos, mouse_button);
+            let ev_down =
+                CGEventCreateMouseEvent(std::ptr::null_mut(), down, pos, mouse_button);
+            let ev_up =
+                CGEventCreateMouseEvent(std::ptr::null_mut(), up, pos, mouse_button);
+            if ev_down.is_null() || ev_up.is_null() {
                 if !ev_down.is_null() {
-                    CGEventPost(CG_HID_EVENT_TAP, ev_down);
                     CFRelease(ev_down);
                 }
-                let ev_up = CGEventCreateMouseEvent(src, up, pos, mouse_button);
                 if !ev_up.is_null() {
-                    CGEventPost(CG_HID_EVENT_TAP, ev_up);
                     CFRelease(ev_up);
                 }
+                return;
             }
+            for _ in 0..n {
+                CGEventPost(CG_HID_EVENT_TAP, ev_down);
+                CGEventPost(CG_HID_EVENT_TAP, ev_up);
+            }
+            CFRelease(ev_down);
+            CFRelease(ev_up);
         }
     }
 

@@ -360,7 +360,9 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
     };
     // Batch size keeps per-cycle time at ~2-5ms to balance CPU vs timing.
     let batch_size = if !config.double_click_enabled {
-        if cps >= 2000.0 {
+        if cps >= 3000.0 {
+            16usize
+        } else if cps >= 1500.0 {
             8usize
         } else if cps >= 500.0 {
             4usize
@@ -392,6 +394,8 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
 
     println!("Clicking at: {}, {}", target_x, target_y);
 
+    let mut last_cursor = get_cursor_pos();
+
     if has_position {
         move_mouse(target_x, target_y);
     }
@@ -405,19 +409,22 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
     }
 
     while control.is_active() {
-        let cursor_now = get_cursor_pos();
-
         failsafe_tick += 1;
-        if failsafe_tick % failsafe_skip == 0 {
+        let cursor_now = if failsafe_tick % failsafe_skip == 0 {
+            let pos = get_cursor_pos();
             // Refresh monitor rects periodically (they rarely change)
             if failsafe_tick % monitor_refresh_interval == 0 {
                 monitors = get_cached_monitors();
             }
-            if let Some(reason) = should_stop_for_failsafe_at(cursor_now, &monitors, &config) {
+            if let Some(reason) = should_stop_for_failsafe_at(pos, &monitors, &config) {
                 stop_reason = reason;
                 break;
             }
-        }
+            last_cursor = pos;
+            pos
+        } else {
+            last_cursor
+        };
 
         if config.limit > 0 && click_count >= config.limit as i64 {
             stop_reason = format!("Click limit reached ({})", config.limit);
@@ -565,62 +572,6 @@ pub fn get_click_count() -> i64 {
     CLICK_COUNT.load(Ordering::Relaxed)
 }
 
-// -- macOS precise sleep via mach_wait_until --
-
-#[cfg(target_os = "macos")]
-mod timer {
-    use std::time::Duration;
-
-    #[repr(C)]
-    #[derive(Clone, Copy)]
-    struct MachTimebaseInfo {
-        numer: u32,
-        denom: u32,
-    }
-
-    extern "C" {
-        fn mach_absolute_time() -> u64;
-        fn mach_wait_until(deadline: u64) -> i32;
-        fn mach_timebase_info(info: *mut MachTimebaseInfo) -> i32;
-    }
-
-    fn timebase() -> MachTimebaseInfo {
-        static mut TB: MachTimebaseInfo = MachTimebaseInfo { numer: 0, denom: 0 };
-        static INIT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-        if !INIT.load(std::sync::atomic::Ordering::Acquire) {
-            unsafe { mach_timebase_info(&raw mut TB) };
-            INIT.store(true, std::sync::atomic::Ordering::Release);
-        }
-        unsafe { TB }
-    }
-
-    fn nanos_to_abs(nanos: u64) -> u64 {
-        let tb = timebase();
-        if tb.numer == 0 || tb.denom == 0 {
-            return nanos;
-        }
-        ((nanos as u128 * tb.denom as u128) / tb.numer as u128) as u64
-    }
-
-    pub fn sleep_precise(duration: Duration) {
-        if duration.is_zero() {
-            return;
-        }
-        let nanos = duration.as_nanos().min(u64::MAX as u128) as u64;
-        let abs_dur = nanos_to_abs(nanos);
-        unsafe {
-            let deadline = mach_absolute_time().saturating_add(abs_dur);
-            loop {
-                let now = mach_absolute_time();
-                if now >= deadline {
-                    break;
-                }
-                mach_wait_until(deadline);
-            }
-        }
-    }
-}
-
 pub fn sleep_interruptible(remaining: Duration, control: &RunControl) {
     let deadline = Instant::now() + remaining;
 
@@ -641,9 +592,6 @@ pub fn sleep_interruptible(remaining: Duration, control: &RunControl) {
             return;
         }
         let left = deadline - now;
-        #[cfg(target_os = "macos")]
-        timer::sleep_precise(left.min(chunk));
-        #[cfg(not(target_os = "macos"))]
         std::thread::sleep(left.min(chunk));
     }
 }

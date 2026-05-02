@@ -24,7 +24,6 @@ export default function HotkeyCaptureInput({
 }: Props) {
   const [listening, setListening] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const ignorePrimaryInputMouseUntilRef = useRef(0);
   const suppressedMouseButtonRef = useRef<number | null>(null);
   const suppressResetTimerRef = useRef<number | null>(null);
   const [layoutMap, setLayoutMap] =
@@ -128,23 +127,36 @@ export default function HotkeyCaptureInput({
     };
 
     const handleMouseDown = (event: MouseEvent) => {
+      // Ignore the initial left-click that focuses the input
       const input = inputRef.current;
-      const isInputTarget =
-        input !== null &&
-        event.target instanceof Node &&
-        input.contains(event.target);
-
       if (
-        isInputTarget &&
+        input !== null &&
         event.button === 0 &&
-        performance.now() < ignorePrimaryInputMouseUntilRef.current
+        event.target instanceof Node &&
+        input.contains(event.target)
       ) {
         return;
       }
 
       const nextHotkey = captureMouseHotkey(event);
       if (!nextHotkey) return;
+      applyMouseCapture(event, nextHotkey, finishCapture);
+    };
 
+    const handleMouseUp = (event: MouseEvent) => {
+      // Only used as fallback for side buttons (mouse4/mouse5)
+      // because WKWebView consumes mousedown for back/forward navigation
+      if (event.button !== 3 && event.button !== 4) return;
+      const nextHotkey = captureMouseHotkey(event);
+      if (!nextHotkey) return;
+      applyMouseCapture(event, nextHotkey, finishCapture);
+    };
+
+    const applyMouseCapture = (
+      event: MouseEvent,
+      nextHotkey: string,
+      finishCapture: (h?: string) => void,
+    ) => {
       suppressedMouseButtonRef.current = event.button;
       if (suppressResetTimerRef.current !== null) {
         window.clearTimeout(suppressResetTimerRef.current);
@@ -164,10 +176,12 @@ export default function HotkeyCaptureInput({
 
     window.addEventListener("keydown", handleKeyDown, true);
     window.addEventListener("mousedown", handleMouseDown, true);
+    window.addEventListener("mouseup", handleMouseUp, true);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown, true);
       window.removeEventListener("mousedown", handleMouseDown, true);
+      window.removeEventListener("mouseup", handleMouseUp, true);
     };
   }, [listening, onChange]);
 
@@ -246,11 +260,6 @@ export default function HotkeyCaptureInput({
       className={className}
       value={displayText}
       readOnly
-      onMouseDown={(event) => {
-        if (event.button === 0) {
-          ignorePrimaryInputMouseUntilRef.current = performance.now() + 150;
-        }
-      }}
       onFocus={() => setListening(true)}
       onBlur={() => setListening(false)}
       onContextMenu={(event) => {
