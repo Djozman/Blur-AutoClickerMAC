@@ -54,9 +54,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 1.875rem;
-  min-width: 1.875rem;
-  width: 1.875rem;
+  flex: 0 0 1.625rem;
+  min-width: 1.625rem;
+  width: 1.625rem;
   padding: 0;
 }
 
@@ -67,6 +67,22 @@
 
 .adv-target-mouse-buttons {
   flex: 0 0 auto;
+}
+
+.adv-target-mouse-buttons .adv-seg-btn {
+  min-width: 3.25rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.adv-target-row > div:first-child {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.adv-target-row .adv-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .adv-key-target-box {
