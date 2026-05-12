@@ -21,7 +21,7 @@
 }
 
 .adv-col--sequence {
-  flex: 0 1 25rem;
+  flex: 1;
   min-width: 0;
 }
 
