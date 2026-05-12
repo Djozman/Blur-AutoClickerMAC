@@ -66,29 +66,45 @@ export default function AdvancedPanel({
     rateInputMode,
   ]);
 
+  const sequenceSection = (
+    <SequenceSection
+      settings={settings}
+      update={update}
+      showInfo={showInfo}
+      running={running}
+      activeSequenceIndex={activeSequenceIndex}
+      activeSequenceTick={activeSequenceTick}
+    />
+  );
+
+  const mainSections = (
+    <>
+      <CadenceSection settings={settings} update={update} showInfo={showInfo} />
+      <DutyCycleSection settings={settings} update={update} showInfo={showInfo} />
+      <LimitsSection settings={settings} update={update} showInfo={showInfo} />
+      <SpeedVariationSection settings={settings} update={update} showInfo={showInfo} />
+      <DoubleClickSection settings={settings} update={update} showInfo={showInfo} />
+    </>
+  );
+
   return (
     <div className="adv-panel adv-panel-text">
       <div className={`adv-columns${isTallLayout ? " adv-columns--tall" : ""}`}>
-        <div className="adv-col">
-          <CadenceSection settings={settings} update={update} showInfo={showInfo} />
-          <DutyCycleSection settings={settings} update={update} showInfo={showInfo} />
-          <LimitsSection settings={settings} update={update} showInfo={showInfo} />
-          <SpeedVariationSection settings={settings} update={update} showInfo={showInfo} />
-          <DoubleClickSection settings={settings} update={update} showInfo={showInfo} />
-        </div>
-
-        <div className={`adv-col${isTallLayout ? " adv-col--sequence" : ""}`}>
-          {isTallLayout && (
-            <SequenceSection
-              settings={settings}
-              update={update}
-              showInfo={showInfo}
-              running={running}
-              activeSequenceIndex={activeSequenceIndex}
-              activeSequenceTick={activeSequenceTick}
-            />
-          )}
-        </div>
+        {isTallLayout ? (
+          <div className="adv-col">
+            {mainSections}
+            {sequenceSection}
+          </div>
+        ) : (
+          <>
+            <div className="adv-col">
+              {mainSections}
+            </div>
+            <div className="adv-col adv-col--sequence">
+              {sequenceSection}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
