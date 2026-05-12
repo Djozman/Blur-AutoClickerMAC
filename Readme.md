@@ -40,7 +40,7 @@
 3. Open the `.dmg` and drag **BlurAutoClicker** to your Applications folder
 4. Grant **Accessibility access** when prompted:
    **System Settings → Privacy & Security → Accessibility → enable BlurAutoClicker**
-5. Grant **Input Monitoring** (required for keyboard clicking and global hotkeys):
+5. Grant **Input Monitoring access:**
    **System Settings → Privacy & Security → Input Monitoring → enable BlurAutoClicker**
 
 > ⚠️ If macOS blocks the app on first launch, go to **System Settings → Privacy & Security** and click **Open Anyway**
