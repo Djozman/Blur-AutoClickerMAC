@@ -89,7 +89,7 @@ export default function AdvancedPanel({
 
   return (
     <div className="adv-panel adv-panel-text">
-      <div className={`adv-columns${isTallLayout ? " adv-columns--tall" : " adv-columns--wide"}`}>
+      <div className={`adv-columns${isTallLayout ? " adv-columns--tall" : ""}`}>
         {isTallLayout ? (
           <div className="adv-col">
             {mainSections}
