@@ -178,6 +178,11 @@ export default function CadenceSection({ settings, update, showInfo }: Props) {
               }
             />
           ) : null}
+          <span className="adv-label">
+            {settings.inputType === "mouse"
+              ? t("advanced.mouseButton")
+              : t("advanced.keyboardKey")}
+          </span>
         </div>
         <div className="adv-target-controls">
           <div className="adv-seg-group adv-input-type-group">
