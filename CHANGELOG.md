@@ -1,3 +1,14 @@
+# v3.6.0 - 11.05.2026 (d.m.y)
+## New
+- Added the ability to choose between mouse clicking and keyboard clicking
+- Added the ability to choose a vertical or horizontal layout for Advanced mode (feedback on this would be appriciated)
+## Changed
+- Made batching more dynamic
+- Increased the maximum Sequence Click repitition amount to 100000 from 1000
+- Increased the corner and edge stop zones maximum value to 10000 from 999
+## Fix
+- Fixed Sequence clicking not working as intended.
+
 # v3.5.0 - 29.04.2026 (d.m.y)
 ## New
 - Added named presets for saving and reusing clicker configurations

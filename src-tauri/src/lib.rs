@@ -35,6 +35,7 @@ pub fn run() {
             last_error: Mutex::new(None),
             stop_reason: Mutex::new(None),
             active_sequence_index: AtomicI64::new(-1),
+            active_sequence_tick: AtomicU64::new(0),
             registered_hotkey: Mutex::new(None),
             suppress_hotkey_until_ms: AtomicU64::new(0),
             suppress_hotkey_until_release: AtomicBool::new(false),

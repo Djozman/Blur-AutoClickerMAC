@@ -2,12 +2,15 @@ import { DEFAULT_LANGUAGE, isLanguage, type Language } from "./i18n";
 
 export type ClickInterval = "s" | "m" | "h" | "d";
 export type MouseButton = "Left" | "Middle" | "Right";
+export type InputType = "mouse" | "keyboard";
+export type KeyboardKeyCase = "lower" | "upper";
 export type ClickMode = "Toggle" | "Hold";
 export type TimeLimitUnit = "s" | "m" | "h";
 export type SavedPanel = "simple" | "advanced" | "zones";
 export type Theme = "dark" | "light";
 export type PresetId = string;
 export type RateInputMode = "rate" | "duration";
+export type AdvancedSequenceLayout = "wide" | "tall";
 
 export interface SequencePoint {
   id: string;
@@ -26,6 +29,9 @@ function createSequencePointId(): string {
 export interface PresetSnapshot {
   clickSpeed: number;
   clickInterval: ClickInterval;
+  inputType: InputType;
+  keyboardKey: string;
+  keyboardKeyCase: KeyboardKeyCase;
   mouseButton: MouseButton;
   mode: ClickMode;
   dutyCycleEnabled: boolean;
@@ -81,8 +87,12 @@ export interface Settings extends PresetSnapshot {
   showStopReason: boolean;
   showStopOverlay: boolean;
   strictHotkeyModifiers: boolean;
+  inputType: InputType;
+  keyboardKey: string;
+  keyboardKeyCase: KeyboardKeyCase;
   minimizeToTray: boolean;
   theme: Theme;
+  advancedSequenceLayout: AdvancedSequenceLayout;
   alwaysOnTop: boolean;
   accentColor: string;
   presets: PresetDefinition[];
@@ -112,19 +122,22 @@ export const SETTINGS_LIMITS = {
   doubleClickDelay: { min: 20, max: 9999 },
   clickLimit: { min: 1, max: 10_000_000 },
   timeLimit: { min: 1 },
-  stopBoundary: { min: 0, max: 999 },
+  stopBoundary: { min: 0, max: 10000 },
   position: { min: 0 },
   durationHours: { min: 0, max: 999 },
   durationMinutes: { min: 0 },
   durationSeconds: { min: 0, max: 59 },
   durationMilliseconds: { min: 0, max: 999 },
   stopZoneDimension: { min: 1 },
-  sequencePointClicks: { min: 1, max: 1000 },
+  sequencePointClicks: { min: 1, max: 100000 },
 } as const;
 
 export const PRESET_SNAPSHOT_KEYS = [
   "clickSpeed",
   "clickInterval",
+  "inputType",
+  "keyboardKey",
+  "keyboardKeyCase",
   "mouseButton",
   "mode",
   "dutyCycleEnabled",
@@ -243,8 +256,12 @@ export function createDefaultSettings(version: string): Settings {
     showStopReason: true,
     showStopOverlay: true,
     strictHotkeyModifiers: false,
+    inputType: "mouse" as const,
+    keyboardKey: "",
+    keyboardKeyCase: "lower",
     minimizeToTray: false,
     theme: "dark",
+    advancedSequenceLayout: "wide",
     alwaysOnTop: false,
     accentColor: DEFAULT_ACCENT_COLOR,
     presets: [],
@@ -256,6 +273,9 @@ export function buildPresetSnapshot(settings: Settings): PresetSnapshot {
   return {
     clickSpeed: settings.clickSpeed,
     clickInterval: settings.clickInterval,
+    inputType: settings.inputType,
+    keyboardKey: settings.keyboardKey,
+    keyboardKeyCase: settings.keyboardKeyCase,
     mouseButton: settings.mouseButton,
     mode: settings.mode,
     dutyCycleEnabled: settings.dutyCycleEnabled,
@@ -330,6 +350,13 @@ function sanitizePresetSnapshot(
       saved.clickInterval === "d"
         ? saved.clickInterval
         : defaults.clickInterval,
+    inputType: saved.inputType === "keyboard" ? "keyboard" : defaults.inputType,
+    keyboardKey:
+      typeof saved.keyboardKey === "string"
+        ? saved.keyboardKey
+        : defaults.keyboardKey,
+    keyboardKeyCase:
+      saved.keyboardKeyCase === "upper" ? "upper" : defaults.keyboardKeyCase,
     mouseButton:
       saved.mouseButton === "Middle" || saved.mouseButton === "Right"
         ? saved.mouseButton
@@ -449,6 +476,10 @@ function sanitizePresetSnapshot(
 
 function sanitizeRateInputMode(value: unknown): RateInputMode {
   return value === "duration" ? "duration" : "rate";
+}
+
+function sanitizeAdvancedSequenceLayout(value: unknown): AdvancedSequenceLayout {
+  return value === "tall" ? "tall" : "wide";
 }
 
 function sanitizeSequencePoints(value: unknown): SequencePoint[] {
@@ -676,7 +707,13 @@ export function sanitizeSettings(
     disableScreenshots: false,
     lastPanel: sanitizeSavedPanel(saved.lastPanel),
     theme: sanitizeTheme(saved.theme),
+    advancedSequenceLayout: sanitizeAdvancedSequenceLayout(
+      saved.advancedSequenceLayout,
+    ),
     strictHotkeyModifiers: sanitizeBoolean(saved.strictHotkeyModifiers, defaults.strictHotkeyModifiers),
+    inputType: saved.inputType === "keyboard" ? "keyboard" : "mouse",
+    keyboardKey: typeof saved.keyboardKey === "string" ? saved.keyboardKey : "",
+    keyboardKeyCase: saved.keyboardKeyCase === "upper" ? "upper" : "lower",
     minimizeToTray: sanitizeBoolean(saved.minimizeToTray, defaults.minimizeToTray),
     alwaysOnTop: sanitizeBoolean(saved.alwaysOnTop, defaults.alwaysOnTop),
     accentColor: sanitizeHexColor(saved.accentColor, defaults.accentColor),

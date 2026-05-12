@@ -151,40 +151,40 @@ export default function CustomStopZoneSection({
         <div className="adv-stop-zone-body">
           <div className="adv-stop-zone-controls">
             <div className="adv-stop-zone-grid">
-              <div className="adv-numbox-sm adv-sequence-coord adv-stop-zone-input">
-                <span className="adv-unit adv-axis-label">X</span>
+              <label style={{ gap: "6px" }}>
+                <span style={{ textAlign: "center" }}>X</span>
                 <NumInput
                   value={settings.customStopZoneX}
                   onChange={(v) => update({ customStopZoneX: v })}
-                  style={{ width: "54px", textAlign: "right" }}
+                  style={{ flex: 1, width: "100%", textAlign: "left" }}
                 />
-              </div>
-              <div className="adv-numbox-sm adv-sequence-coord adv-stop-zone-input">
-                <span className="adv-unit adv-axis-label">Y</span>
+              </label>
+              <label style={{ gap: "6px" }}>
+                <span style={{ textAlign: "center" }}>Y</span>
                 <NumInput
                   value={settings.customStopZoneY}
                   onChange={(v) => update({ customStopZoneY: v })}
-                  style={{ width: "54px", textAlign: "right" }}
+                  style={{ flex: 1, width: "100%", textAlign: "left" }}
                 />
-              </div>
-              <div className="adv-numbox-sm adv-sequence-coord adv-stop-zone-input">
-                <span className="adv-unit">W</span>
+              </label>
+              <label style={{ gap: "6px" }}>
+                <span style={{ textAlign: "center" }}>W</span>
                 <NumInput
                   value={settings.customStopZoneWidth}
                   onChange={(v) => update({ customStopZoneWidth: v })}
                   min={1}
-                  style={{ width: "54px", textAlign: "right" }}
+                  style={{ flex: 1, width: "100%", textAlign: "left" }}
                 />
-              </div>
-              <div className="adv-numbox-sm adv-sequence-coord adv-stop-zone-input">
-                <span className="adv-unit">H</span>
+              </label>
+              <label style={{ gap: "6px" }}>
+                <span style={{ textAlign: "center" }}>H</span>
                 <NumInput
                   value={settings.customStopZoneHeight}
                   onChange={(v) => update({ customStopZoneHeight: v })}
                   min={1}
-                  style={{ width: "54px", textAlign: "right" }}
+                  style={{ flex: 1, width: "100%", textAlign: "left" }}
                 />
-              </div>
+              </label>
             </div>
             <div className="adv-sequence-actions adv-stop-zone-actions">
               <button

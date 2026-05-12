@@ -395,6 +395,11 @@ export default function SettingsPanel({
     { value: false, label: t("common.off") },
   ];
 
+  const advancedLayoutOptions = [
+    { value: "wide" as const, label: t("settings.advancedLayoutWide") },
+    { value: "tall" as const, label: t("settings.advancedLayoutTall") },
+  ];
+
   const handleConfirmResetSettings = async () => {
     setResetting(true);
     try {
@@ -878,6 +883,30 @@ export default function SettingsPanel({
                   onClick={() => update({ theme })}
                 >
                   {t(theme === "dark" ? "common.dark" : "common.light")}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="settings-row">
+            <div className="settings-label-group">
+              <span className="settings-label">
+                {t("settings.advancedLayout")}
+              </span>
+              <span className="settings-sublabel">
+                {t("settings.advancedLayoutDescription")}
+              </span>
+            </div>
+            <div className="settings-seg-group">
+              {advancedLayoutOptions.map((option) => (
+                <button
+                  key={option.value}
+                  className={`settings-seg-btn ${settings.advancedSequenceLayout === option.value ? "active" : ""}`}
+                  onClick={() =>
+                    update({ advancedSequenceLayout: option.value })
+                  }
+                >
+                  {option.label}
                 </button>
               ))}
             </div>

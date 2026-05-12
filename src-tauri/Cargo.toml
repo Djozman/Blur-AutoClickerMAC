@@ -1,6 +1,6 @@
 [package]
 name = "BlurAutoClicker"
-version = "3.5.0"
+version = "3.6.0"
 description = "BlurAutoClicker - accuracy and performance focused auto clicker for macOS."
 authors = ["Blur009", "Djozman"]
 license = "GPL-3.0"
@@ -37,3 +37,4 @@ dirs = "6.0.0"
 strip = true
 lto = "thin"
 codegen-units = 1
+debug = false

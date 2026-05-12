@@ -72,7 +72,7 @@ export default function FailsafeSection({ settings, update, showInfo }: Props) {
                     onChange={(v) => update({ [CORNER_KEYS[cornerKey]]: v })}
                     min={SETTINGS_LIMITS.stopBoundary.min}
                     max={SETTINGS_LIMITS.stopBoundary.max}
-                    style={{ width: "28px", textAlign: "right" }}
+                    style={{ width: "74px", textAlign: "right" }}
                   />
                   <span className="adv-unit">px</span>
                 </div>
@@ -120,7 +120,7 @@ export default function FailsafeSection({ settings, update, showInfo }: Props) {
                     onChange={(v) => update({ [EDGE_KEYS[edgeSide]]: v })}
                     min={SETTINGS_LIMITS.stopBoundary.min}
                     max={SETTINGS_LIMITS.stopBoundary.max}
-                    style={{ width: "28px", textAlign: "right" }}
+                    style={{ width: "74px", textAlign: "right" }}
                   />
                   <span className="adv-unit">px</span>
                 </div>

@@ -19,6 +19,7 @@
 - 🔁 **Sequence mode** — define multi-point click sequences with per-point click counts
 - ⚡ **High-speed clicking** — sub-millisecond precision using CoreGraphics on macOS
 - 🖱️ **Left, Right & Middle click** support
+- ⌨️ **Keyboard key pressing** with lower/uppercase letter control
 - 🔄 **Double-click mode** with configurable delay
 - 🎲 **Speed variation** — randomize intervals with Gaussian distribution for human-like behavior
 - ⏱️ **Time limit & click limit** — auto-stop after a set duration or number of clicks

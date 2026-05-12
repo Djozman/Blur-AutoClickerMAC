@@ -23,6 +23,7 @@ interface Props {
   showInfo: boolean;
   running: boolean;
   activeSequenceIndex: number | null;
+  activeSequenceTick: number;
 }
 
 interface CursorPoint {
@@ -80,6 +81,7 @@ export default function SequenceSection({
   showInfo,
   running,
   activeSequenceIndex,
+  activeSequenceTick,
 }: Props) {
   const { t } = useTranslation();
   const [capturingCursor, setCapturingCursor] = useState(false);
@@ -433,6 +435,12 @@ export default function SequenceSection({
                               : undefined
                           }
                         >
+                          {isActive ? (
+                            <span
+                              key={activeSequenceTick}
+                              className="adv-sequence-progress"
+                            />
+                          ) : null}
                           <div className="adv-sequence-leading">
                             <span className="adv-sequence-index">
                               {index + 1}
@@ -471,40 +479,40 @@ export default function SequenceSection({
                               </svg>
                             </button>
                           </div>
-                          <div className="adv-numbox-sm adv-sequence-coord">
-                            <span className="adv-unit adv-axis-label">X</span>
+                          <label style={{ gap: "6px" }}>
+                            <span style={{ minWidth: "0.125rem", textAlign: "center" }}>X</span>
                             <NumInput
                               value={point.x}
                               onChange={(value) =>
                                 updateSequencePoint(index, { x: value })
                               }
-                              style={{ width: "6ch", textAlign: "right" }}
+                              style={{ flex: 1, width: "100%", textAlign: "right" }}
                             />
-                          </div>
-                          <div className="adv-numbox-sm adv-sequence-coord">
-                            <span className="adv-unit adv-axis-label">Y</span>
+                          </label>
+                          <label style={{ gap: "6px" }}>
+                            <span style={{ minWidth: "0.75rem", textAlign: "left" }}>Y</span>
                             <NumInput
                               value={point.y}
                               onChange={(value) =>
                                 updateSequencePoint(index, { y: value })
                               }
-                              style={{ width: "6ch", textAlign: "right" }}
+                              style={{ flex: 1, width: "100%", textAlign: "right" }}
                             />
-                          </div>
-                          <div className="adv-numbox-sm adv-sequence-coord adv-sequence-clicks">
-                            <span className="adv-unit adv-axis-label">
+                          </label>
+                          <label style={{ gap: "6px" }}>
+                            <span style={{ minWidth: "0.75rem", textAlign: "left" }}>
                               {t("advanced.clicksUnit")}
                             </span>
                             <NumInput
                               value={point.clicks}
                               min={1}
-                              max={1000}
+                              max={100000}
                               onChange={(value) =>
                                 updateSequencePoint(index, { clicks: value })
                               }
-                              style={{ width: "4ch", textAlign: "right" }}
+                              style={{ flex: 1, width: "100%", textAlign: "right" }}
                             />
-                          </div>
+                          </label>
                           <div className="adv-sequence-actions">
                             <button
                               type="button"

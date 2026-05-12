@@ -3,6 +3,8 @@ import type { MouseButton, Settings } from "../../store";
 import { useTranslation, type TranslationKey } from "../../i18n";
 import CadenceInput from "../CadenceInput";
 import HotkeyCaptureInput from "../HotkeyCaptureInput";
+import { isAlphabeticKeyboardKey } from "../../keyboardKeyCase";
+import KeyCaptureInput from "../KeyCaptureInput";
 import {
   MODE_OPTIONS,
   MOUSE_BUTTON_OPTIONS,
@@ -140,6 +142,22 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
     label: t(`options.mouseButton.${button}` as TranslationKey),
   }));
 
+  const inputTypeOptions = [
+    { value: "mouse", label: "Mouse" },
+    { value: "keyboard", label: "Key" },
+  ] as const;
+  const canToggleKeyboardKeyCase = isAlphabeticKeyboardKey(
+    settings.keyboardKey,
+  );
+  const keyboardKeyCaseIsUpper = settings.keyboardKeyCase === "upper";
+  const keyboardKeyCaseLabel = keyboardKeyCaseIsUpper ? "↑" : "↓";
+  const toggleKeyboardKeyCase = () => {
+    if (!canToggleKeyboardKeyCase) return;
+    update({
+      keyboardKeyCase: keyboardKeyCaseIsUpper ? "lower" : "upper",
+    });
+  };
+
   return (
     <div className="vcontainer simple-panel">
       <div className="hcontainer simple-row simple-row--top">
@@ -188,17 +206,47 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
       </div>
 
       <div className="hcontainer simple-row simple-row--bottom">
-        <ControlBox className="simple-row-item">
-          <span className="simple-control-label">
-            {t("advanced.mouseButton")}
-          </span>
-          <div className="vertical-devider vertical-devider--stretch" />
+        <ControlBox className="simple-input-box simple-row-item">
           <AdvDropdown
-            value={settings.mouseButton}
-            options={mouseButtonOptions}
+            value={settings.inputType}
+            options={inputTypeOptions}
             allowWindowOverflow
-            onChange={(value) => update({ mouseButton: value as MouseButton })}
+            onChange={(value) => update({ inputType: value as Settings["inputType"] })}
           />
+          <div className="vertical-devider vertical-devider--stretch" />
+          {settings.inputType === "mouse" ? (
+            <AdvDropdown
+              value={settings.mouseButton}
+              options={mouseButtonOptions}
+              allowWindowOverflow
+              onChange={(value) => update({ mouseButton: value as MouseButton })}
+            />
+          ) : (
+            <>
+              <KeyCaptureInput
+                className="simple-key-input"
+                value={settings.keyboardKey}
+                onChange={(key) => update({ keyboardKey: key })}
+                keyboardKeyCase={settings.keyboardKeyCase}
+                onMouseButtonCapture={(mouseButton) =>
+                  update({ inputType: "mouse", mouseButton })
+                }
+              />
+              <button
+                type="button"
+                className={`simple-key-case-toggle ${
+                  keyboardKeyCaseIsUpper
+                    ? "simple-key-case-toggle--upper"
+                    : "simple-key-case-toggle--lower"
+                }`}
+                title="Toggle keyboard key case"
+                disabled={!canToggleKeyboardKeyCase}
+                onClick={toggleKeyboardKeyCase}
+              >
+                {keyboardKeyCaseLabel}
+              </button>
+            </>
+          )}
         </ControlBox>
 
         <ControlBox className="simple-row-item">

@@ -6,6 +6,7 @@ dist/
 dist-ssr/
 src-tauri/target/
 /gen/schemas
+profile.json.gz
 
 # -- Environment --
 .env
@@ -52,3 +53,4 @@ src/test-main.tsx
 src/TestBed.tsx
 src/tauri-mock-setup.ts
 vite.test.config.ts
+.claude/settings.local.json

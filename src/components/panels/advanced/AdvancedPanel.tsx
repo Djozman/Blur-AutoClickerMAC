@@ -15,6 +15,7 @@ interface Props {
   showInfo: boolean;
   running: boolean;
   activeSequenceIndex: number | null;
+  activeSequenceTick: number;
 }
 
 export default function AdvancedPanel({
@@ -23,7 +24,10 @@ export default function AdvancedPanel({
   showInfo,
   running,
   activeSequenceIndex,
+  activeSequenceTick,
 }: Props) {
+  const isTallLayout = settings.advancedSequenceLayout === "tall";
+
   const {
     clickInterval,
     clickSpeed,
@@ -64,7 +68,7 @@ export default function AdvancedPanel({
 
   return (
     <div className="adv-panel adv-panel-text">
-      <div className="adv-columns">
+      <div className={`adv-columns${isTallLayout ? " adv-columns--tall" : ""}`}>
         <div className="adv-col">
           <CadenceSection settings={settings} update={update} showInfo={showInfo} />
           <DutyCycleSection settings={settings} update={update} showInfo={showInfo} />
@@ -73,14 +77,17 @@ export default function AdvancedPanel({
           <DoubleClickSection settings={settings} update={update} showInfo={showInfo} />
         </div>
 
-        <div className="adv-col">
-          <SequenceSection
-            settings={settings}
-            update={update}
-            showInfo={showInfo}
-            running={running}
-            activeSequenceIndex={activeSequenceIndex}
-          />
+        <div className={`adv-col${isTallLayout ? " adv-col--sequence" : ""}`}>
+          {isTallLayout && (
+            <SequenceSection
+              settings={settings}
+              update={update}
+              showInfo={showInfo}
+              running={running}
+              activeSequenceIndex={activeSequenceIndex}
+              activeSequenceTick={activeSequenceTick}
+            />
+          )}
         </div>
       </div>
     </div>

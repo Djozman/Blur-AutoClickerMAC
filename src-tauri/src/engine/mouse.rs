@@ -54,11 +54,11 @@ impl VirtualScreenRect {
 mod platform {
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
         SendInput, INPUT, INPUT_MOUSE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP,
-        MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
-        MOUSEINPUT,
+        MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN,
+        MOUSEEVENTF_RIGHTUP, MOUSEINPUT,
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetSystemMetrics, SetCursorPos, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
+        GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
         SM_YVIRTUALSCREEN,
     };
 
@@ -139,8 +139,25 @@ mod platform {
         Some(monitors)
     }
 
-    pub fn move_mouse(x: i32, y: i32) {
-        unsafe { SetCursorPos(x, y) };
+    pub fn move_mouse(dx: i32, dy: i32) {
+        let movement = make_movement(dx, dy);
+        unsafe { SendInput(1, &movement, std::mem::size_of::<INPUT>() as i32) };
+    }
+
+    fn make_movement(dx: i32, dy: i32) -> INPUT {
+        INPUT {
+            r#type: INPUT_MOUSE,
+            Anonymous: windows_sys::Win32::UI::Input::KeyboardAndMouse::INPUT_0 {
+                mi: MOUSEINPUT {
+                    dx,
+                    dy,
+                    mouseData: 0,
+                    dwFlags: MOUSEEVENTF_MOVE,
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        }
     }
 
     fn make_input(flags: u32, time: u32) -> INPUT {
@@ -313,11 +330,13 @@ mod platform {
         }
     }
 
-    pub fn move_mouse(x: i32, y: i32) {
+    // move_mouse now receives relative deltas. Compute absolute position.
+    pub fn move_mouse(dx: i32, dy: i32) {
+        let current = get_cursor_point();
         unsafe {
             let point = CGPoint {
-                x: x as f64,
-                y: y as f64,
+                x: current.x + dx as f64,
+                y: current.y + dy as f64,
             };
             let display = CGMainDisplayID();
             CGDisplayMoveCursorToPoint(display, point);
@@ -353,10 +372,8 @@ mod platform {
             _ => CG_MOUSE_BUTTON_CENTER,
         };
         unsafe {
-            let ev_down =
-                CGEventCreateMouseEvent(std::ptr::null_mut(), down, pos, mouse_button);
-            let ev_up =
-                CGEventCreateMouseEvent(std::ptr::null_mut(), up, pos, mouse_button);
+            let ev_down = CGEventCreateMouseEvent(std::ptr::null_mut(), down, pos, mouse_button);
+            let ev_up = CGEventCreateMouseEvent(std::ptr::null_mut(), up, pos, mouse_button);
             if ev_down.is_null() || ev_up.is_null() {
                 if !ev_down.is_null() {
                     CFRelease(ev_down);
@@ -550,36 +567,52 @@ pub fn smooth_move(
     duration_ms: u64,
     rng: &mut SmallRng,
 ) {
+    let diff_x = end_x - start_x;
+    let diff_y = end_y - start_y;
+
     if duration_ms < 5 {
-        move_mouse(end_x, end_y);
+        move_mouse(diff_x, diff_y);
         return;
     }
 
-    let (sx, sy) = (start_x as f64, start_y as f64);
-    let (ex, ey) = (end_x as f64, end_y as f64);
-    let (dx, dy) = (ex - sx, ey - sy);
-    let distance = (dx * dx + dy * dy).sqrt();
+    let (start_x, start_y) = (start_x as f64, start_y as f64);
+    let (end_x, end_y) = (end_x as f64, end_y as f64);
+    let (total_delta_x, total_delta_y) = (end_x - start_x, end_y - start_y);
+    let distance = (total_delta_x * total_delta_x + total_delta_y * total_delta_y).sqrt();
     if distance < 1.0 {
         return;
     }
 
-    let (perp_x, perp_y) = (-dy / distance, dx / distance);
+    let (perpendicular_x, perpendicular_y) = (-total_delta_y / distance, total_delta_x / distance);
     let sign = |b: bool| if b { 1.0f64 } else { -1.0 };
-    let o1 = (rng.next_f64() * 0.3 + 0.15) * distance * sign(rng.next_f64() >= 0.5);
-    let o2 = (rng.next_f64() * 0.3 + 0.15) * distance * sign(rng.next_f64() >= 0.5);
-    let cp1x = sx + dx * 0.33 + perp_x * o1;
-    let cp1y = sy + dy * 0.33 + perp_y * o1;
-    let cp2x = sx + dx * 0.66 + perp_x * o2;
-    let cp2y = sy + dy * 0.66 + perp_y * o2;
+    let offset_1 = (rng.next_f64() * 0.3 + 0.15) * distance * sign(rng.next_f64() >= 0.5);
+    let offset_2 = (rng.next_f64() * 0.3 + 0.15) * distance * sign(rng.next_f64() >= 0.5);
+
+    let control_point_1x = start_x + total_delta_x * 0.33 + perpendicular_x * offset_1;
+    let control_point_1y = start_y + total_delta_y * 0.33 + perpendicular_y * offset_1;
+    let control_point_2x = start_x + total_delta_x * 0.66 + perpendicular_x * offset_2;
+    let control_point_2y = start_y + total_delta_y * 0.66 + perpendicular_y * offset_2;
 
     let steps = (duration_ms as usize).clamp(10, 200);
     let step_dur = Duration::from_millis(duration_ms / steps as u64);
+    let mut last_x = start_x as i32;
+    let mut last_y = start_y as i32;
 
     for i in 0..=steps {
-        let t = ease_in_out_quad(i as f64 / steps as f64);
-        let mx = cubic_bezier(t, sx, cp1x, cp2x, ex) as i32;
-        let my = cubic_bezier(t, sy, cp1y, cp2y, ey) as i32;
-        move_mouse(mx, my);
+        let ease = ease_in_out_quad(i as f64 / steps as f64);
+        let target_x =
+            cubic_bezier(ease, start_x, control_point_1x, control_point_2x, end_x) as i32;
+        let target_y =
+            cubic_bezier(ease, start_y, control_point_1y, control_point_2y, end_y) as i32;
+
+        let diff_x = target_x - last_x;
+        let diff_y = target_y - last_y;
+
+        move_mouse(diff_x, diff_y);
+
+        last_x = target_x;
+        last_y = target_y;
+
         if i < steps {
             std::thread::sleep(step_dur);
         }
