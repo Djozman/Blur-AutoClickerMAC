@@ -21,8 +21,8 @@
 }
 
 .adv-col--sequence {
-  flex: 0 1 25rem;
-  min-width: 0;
+  flex: 0 1 22rem;
+  min-width: 18rem;
 }
 
 .adv-columns--tall .adv-col {
@@ -73,52 +73,7 @@
   width: 8.25rem;
   min-width: 8.25rem;
   overflow: hidden;
-}
-
-.adv-key-target-box .adv-key-input {
-  flex: 1 1 auto;
-  box-sizing: border-box;
-  width: 0;
-  min-width: 0;
-}
-
-.adv-key-case-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.875rem;
-  align-self: stretch;
-  border: none;
-  border-left: 1px solid var(--border-subtle);
-  background: transparent;
-  color: var(--text-dim);
-  font-family: 'DMSans', sans-serif;
-  font-weight: 800;
-  line-height: 1;
-  cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease, opacity 0.15s ease;
-}
-
-.adv-key-case-toggle--upper {
-  font-size: 1.125rem;
-}
-
-.adv-key-case-toggle--lower {
-  font-size: 0.8125rem;
-}
-
-.adv-key-input {
-  font-size: 0.9375rem;
-}
-
-.adv-key-case-toggle:hover:not(:disabled) {
-  background: var(--bg-input);
-  color: var(--text-primary);
-}
-
-.adv-key-case-toggle:disabled {
-  opacity: 0.4;
-  cursor: default;
+  width: 22rem;
 }
 
 .adv-columns--wide .adv-sequence-card {
@@ -255,13 +210,14 @@ input[type="number"]::-webkit-outer-spin-button {
   display: flex;
   gap: 0.625rem;
   flex: 1;
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .adv-col {
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-width: 0;
   min-height: 0;
 }
 
