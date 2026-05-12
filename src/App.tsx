@@ -58,11 +58,11 @@ function getPanelSize(
     return { width: 650, height: 175 + extra };
   }
   if (tab === "settings") return { width: 560, height: 720 + extra };
-  if (tab === "zones") return { width: 560, height: 400 + extra };
+  if (tab === "zones") return { width: 560, height: 430 + extra };
   if (advancedSequenceLayout === "tall") {
     return { width: 560, height: 720 + extra };
   }
-  return { width: 912, height: 527 + extra };
+  return { width: 920, height: 530 + extra };
 }
 
 const textScale = await invoke<number>("get_text_scale_factor");
