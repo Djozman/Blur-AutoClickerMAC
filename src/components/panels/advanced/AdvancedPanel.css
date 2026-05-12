@@ -54,9 +54,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 2.375rem;
-  min-width: 2.375rem;
-  width: 2.375rem;
+  flex: 0 0 2rem;
+  min-width: 2rem;
+  width: 2rem;
+  height: 2rem;
   padding: 0;
 }
 
