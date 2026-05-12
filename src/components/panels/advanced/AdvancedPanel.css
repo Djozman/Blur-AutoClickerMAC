@@ -48,16 +48,24 @@
 
 .adv-input-type-group {
   flex: 0 0 auto;
+  align-self: center;
+  min-height: 0;
 }
 
 .adv-icon-seg-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 1.625rem;
-  min-width: 1.625rem;
-  width: 1.625rem;
+  flex: 0 0 1.5rem;
+  min-width: 1.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
   padding: 0;
+}
+
+.adv-input-type-group .adv-input-type-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .adv-input-type-icon {
@@ -67,22 +75,6 @@
 
 .adv-target-mouse-buttons {
   flex: 0 0 auto;
-}
-
-.adv-target-mouse-buttons .adv-seg-btn {
-  min-width: 3.25rem;
-  padding: 0.25rem 0.5rem;
-}
-
-.adv-target-row > div:first-child {
-  min-width: 0;
-  flex: 0 1 auto;
-}
-
-.adv-target-row .adv-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
 }
 
 .adv-key-target-box {
