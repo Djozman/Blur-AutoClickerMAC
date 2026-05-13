@@ -264,4 +264,5 @@ pub fn print_run_stats(click_count: i64, elapsed_secs: f64, avg_cpu: f64) {
     } else {
         log::info!("Avg CPU: N/A");
     }
+    log::info!("======================");
 }
