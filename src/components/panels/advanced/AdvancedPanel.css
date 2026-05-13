@@ -48,24 +48,16 @@
 
 .adv-seg-group.adv-input-type-group {
   flex: 0 0 auto;
-  align-self: center;
-  min-height: 0;
 }
 
 .adv-seg-btn.adv-icon-seg-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 1.5rem;
-  min-width: 1.5rem;
-  width: 1.5rem;
-  height: 1.5rem;
+  flex: 0 0 2.375rem;
+  min-width: 2.375rem;
+  width: 2.375rem;
   padding: 0;
-}
-
-.adv-input-type-group .adv-input-type-icon {
-  width: 14px;
-  height: 14px;
 }
 
 .adv-input-type-icon {
