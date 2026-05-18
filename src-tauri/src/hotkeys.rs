@@ -515,6 +515,21 @@ pub fn is_vk_down(vk: i32) -> bool {
 }
 
 #[cfg(target_os = "macos")]
+/// Returns true if `vk` is a modifier key (Ctrl, Alt, Shift, or Cmd/Super).
+fn is_modifier_vk(vk: u16) -> bool {
+    matches!(
+        vk,
+        vk_codes::VK_CONTROL
+            | vk_codes::VK_RCONTROL
+            | vk_codes::VK_MENU
+            | vk_codes::VK_RMENU
+            | vk_codes::VK_SHIFT
+            | vk_codes::VK_RSHIFT
+            | vk_codes::VK_LWIN
+            | vk_codes::VK_RWIN
+    )
+}
+
 pub fn is_vk_down(vk: i32) -> bool {
     match vk as u16 {
         0xFFF0 => macos_event_tap::is_mouse_down(0),
@@ -524,7 +539,15 @@ pub fn is_vk_down(vk: i32) -> bool {
         0xFFF4 => macos_event_tap::is_mouse_down(4),
         0xFF => false, // placeholder for keys with no Mac equivalent
         key => {
-            if macos_event_tap::ACTIVE.load(Ordering::SeqCst) {
+            // Modifier keys (Ctrl, Alt, Shift, Cmd) generate NX_FLAGSCHANGED
+            // events (type 12) rather than NX_KEYDOWN/NX_KEYUP (types 10/11).
+            // The event tap only monitors types 10/11, so it never captures
+            // modifier state changes.  Always fall back to CGEventSourceKeyState
+            // for modifiers — it queries the system's HID state directly and
+            // works reliably for modifier keys even in the background.
+            if is_modifier_vk(key) {
+                unsafe { macos_input::CGEventSourceKeyState(macos_input::HID_SYSTEM_STATE, key) }
+            } else if macos_event_tap::ACTIVE.load(Ordering::SeqCst) {
                 macos_event_tap::is_down(key)
             } else {
                 unsafe { macos_input::CGEventSourceKeyState(macos_input::HID_SYSTEM_STATE, key) }

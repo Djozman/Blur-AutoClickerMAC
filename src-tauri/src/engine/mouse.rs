@@ -265,6 +265,7 @@ mod platform {
             mouse_cursor_position: CGPoint,
             mouse_button: u32,
         ) -> *mut c_void;
+        fn CGEventSetFlags(event: *mut c_void, flags: u64);
         fn CGEventPost(tap: u32, event: *mut c_void);
         fn CGDisplayBounds(display: u32) -> CGRect;
         fn CGMainDisplayID() -> u32;
@@ -371,6 +372,7 @@ mod platform {
             let event =
                 CGEventCreateMouseEvent(std::ptr::null_mut(), event_type, pos, mouse_button);
             if !event.is_null() {
+                CGEventSetFlags(event, 0);
                 CGEventPost(CG_HID_EVENT_TAP, event);
                 CFRelease(event);
             }
@@ -400,6 +402,8 @@ mod platform {
                 }
                 return;
             }
+            CGEventSetFlags(ev_down, 0);
+            CGEventSetFlags(ev_up, 0);
             for _ in 0..n {
                 CGEventPost(CG_HID_EVENT_TAP, ev_down);
                 CGEventPost(CG_HID_EVENT_TAP, ev_up);
@@ -423,6 +427,7 @@ mod platform {
                 CG_MOUSE_BUTTON_LEFT,
             );
             if !event.is_null() {
+                CGEventSetFlags(event, 0);
                 CGEventPost(CG_HID_EVENT_TAP, event);
                 CFRelease(event);
             }
