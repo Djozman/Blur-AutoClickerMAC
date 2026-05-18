@@ -67,12 +67,12 @@
 
 .adv-target-mouse-buttons {
   flex: 0 0 auto;
-  min-width: 9.375rem;
+  min-width: 9rem;
 }
 
 .adv-key-target-box {
-  width: 9.375rem;
-  min-width: 9.375rem;
+  width: 9rem;
+  min-width: 9rem;
   overflow: hidden;
 }
 
