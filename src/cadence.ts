@@ -1,5 +1,6 @@
 import type { RateInputMode, Settings } from "./store";
 import type { ClickInterval } from "./settingsSchema";
+import { getMaxClickSpeed } from "./settingsSchema";
 
 type CadenceSettings = Pick<
   Settings,
@@ -10,7 +11,9 @@ type CadenceSettings = Pick<
   | "durationMinutes"
   | "durationSeconds"
   | "durationMilliseconds"
->;
+> & {
+  extendedClickSpeedLimit?: boolean;
+};
 
 export type CadenceDurationFields = Pick<
   Settings,
@@ -88,7 +91,13 @@ export function convertDurationToRate(
 
   for (const interval of intervalCandidates) {
     const intervalMs = getIntervalMilliseconds(interval);
-    const speed = Math.max(1, Math.min(500, Math.round(intervalMs / totalMs)));
+    const speed = Math.max(
+      1,
+      Math.min(
+        getMaxClickSpeed(settings.extendedClickSpeedLimit),
+        Math.round(intervalMs / totalMs),
+      ),
+    );
     const actualMs = intervalMs / speed;
     const error = Math.abs(actualMs - totalMs);
 

@@ -125,13 +125,6 @@ function NumberField({
 export default function SimplePanel({ settings, update }: SimplePanelProps) {
   const { t } = useTranslation();
 
-  const isShortHotkey = (() => {
-    const raw = settings.hotkey.trim();
-    if (!raw) return true;
-    const parts = raw.split("+").filter(Boolean);
-    return parts.length <= 2 && raw.length <= 10;
-  })();
-
   const clickModeOptions = MODE_OPTIONS.map((mode) => ({
     value: mode,
     label: t(`options.mode.${mode}` as TranslationKey),
@@ -169,7 +162,7 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
           <div className="faderbox simple-hotkey-field">
             <HotkeyCaptureInput
               className="simple-hotkey-input"
-              style={{ width: isShortHotkey ? "90px" : "130px" }}
+              style={{ width: "90px" }}
               value={settings.hotkey}
               onChange={(hotkey) => update({ hotkey })}
             />
@@ -211,7 +204,9 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
             value={settings.inputType}
             options={inputTypeOptions}
             allowWindowOverflow
-            onChange={(value) => update({ inputType: value as Settings["inputType"] })}
+            onChange={(value) =>
+              update({ inputType: value as Settings["inputType"] })
+            }
           />
           <div className="vertical-devider vertical-devider--stretch" />
           {settings.inputType === "mouse" ? (
@@ -219,7 +214,9 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
               value={settings.mouseButton}
               options={mouseButtonOptions}
               allowWindowOverflow
-              onChange={(value) => update({ mouseButton: value as MouseButton })}
+              onChange={(value) =>
+                update({ mouseButton: value as MouseButton })
+              }
             />
           ) : (
             <>
@@ -231,6 +228,7 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
                 onMouseButtonCapture={(mouseButton) =>
                   update({ inputType: "mouse", mouseButton })
                 }
+                style={{ width: "90px" }}
               />
               <button
                 type="button"
@@ -253,8 +251,8 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
           <NumberField
             label={t("simple.hold")}
             value={settings.dutyCycle}
-            min={SETTINGS_LIMITS.dutyCycle.min}
-            max={SETTINGS_LIMITS.dutyCycle.max}
+            min={SETTINGS_LIMITS.dutyCycle.min!}
+            max={SETTINGS_LIMITS.dutyCycle.max!}
             onChange={(next) => update({ dutyCycle: next })}
             width={dynamicChWidth(settings.dutyCycle)}
           />
@@ -264,8 +262,8 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
           <NumberField
             label={t("simple.randomization")}
             value={settings.speedVariation}
-            min={SETTINGS_LIMITS.speedVariation.min}
-            max={SETTINGS_LIMITS.speedVariation.max}
+            min={SETTINGS_LIMITS.speedVariation.min!}
+            max={SETTINGS_LIMITS.speedVariation.max!}
             onChange={(next) => update({ speedVariation: next })}
             width={dynamicChWidth(settings.speedVariation)}
           />
