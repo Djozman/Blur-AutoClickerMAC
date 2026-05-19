@@ -141,7 +141,8 @@ mod platform {
     use super::super::worker::{sleep_interruptible, RunControl};
     use std::ffi::c_void;
 
-    const CG_HID_EVENT_TAP: u32 = 1; // kCGSessionEventTap
+    const CG_EVENT_TAP_HID: u32 = 0; // kCGHIDEventTap – lowest level, treated as hardware input
+    const CG_EVENT_SOURCE_STATE_HID: i32 = 1; // kCGEventSourceStateHIDSystemState
 
     // Standard macOS virtual key codes for modifier keys
     const VK_SHIFT: u16 = 56;
@@ -154,7 +155,20 @@ mod platform {
             key_down: bool,
         ) -> *mut c_void;
         fn CGEventPost(tap: u32, event: *mut c_void);
+        fn CGEventSourceCreate(state_id: i32) -> *mut c_void;
         fn CFRelease(cf: *mut c_void);
+    }
+
+    struct EventSource(*mut c_void);
+    unsafe impl Send for EventSource {}
+    unsafe impl Sync for EventSource {}
+
+    fn event_source() -> *mut c_void {
+        use std::sync::OnceLock;
+        static SOURCE: OnceLock<EventSource> = OnceLock::new();
+        SOURCE
+            .get_or_init(|| EventSource(unsafe { CGEventSourceCreate(CG_EVENT_SOURCE_STATE_HID) }))
+            .0
     }
 
     pub fn is_alphabetic_vk(vk: u16) -> bool {
@@ -189,9 +203,9 @@ mod platform {
     fn send_key_event(vk: u16, key_down: bool) {
         let mac_vk = win_vk_to_mac_vk(vk);
         unsafe {
-            let event = CGEventCreateKeyboardEvent(std::ptr::null_mut(), mac_vk, key_down);
+            let event = CGEventCreateKeyboardEvent(event_source(), mac_vk, key_down);
             if !event.is_null() {
-                CGEventPost(CG_HID_EVENT_TAP, event);
+                CGEventPost(CG_EVENT_TAP_HID, event);
                 CFRelease(event);
             }
         }
@@ -200,15 +214,15 @@ mod platform {
     fn send_key_batch(vk: u16, n: usize, uppercase: bool) {
         let mac_vk = win_vk_to_mac_vk(vk);
         unsafe {
-            let ev_down = CGEventCreateKeyboardEvent(std::ptr::null_mut(), mac_vk, true);
-            let ev_up = CGEventCreateKeyboardEvent(std::ptr::null_mut(), mac_vk, false);
+            let ev_down = CGEventCreateKeyboardEvent(event_source(), mac_vk, true);
+            let ev_up = CGEventCreateKeyboardEvent(event_source(), mac_vk, false);
             let shift_down = if uppercase && is_alphabetic_vk(vk) {
-                CGEventCreateKeyboardEvent(std::ptr::null_mut(), VK_SHIFT, true)
+                CGEventCreateKeyboardEvent(event_source(), VK_SHIFT, true)
             } else {
                 std::ptr::null_mut()
             };
             let shift_up = if uppercase && is_alphabetic_vk(vk) {
-                CGEventCreateKeyboardEvent(std::ptr::null_mut(), VK_SHIFT, false)
+                CGEventCreateKeyboardEvent(event_source(), VK_SHIFT, false)
             } else {
                 std::ptr::null_mut()
             };
@@ -225,12 +239,12 @@ mod platform {
 
             for _ in 0..n {
                 if uppercase && is_alphabetic_vk(vk) {
-                    CGEventPost(CG_HID_EVENT_TAP, shift_down);
+                    CGEventPost(CG_EVENT_TAP_HID, shift_down);
                 }
-                CGEventPost(CG_HID_EVENT_TAP, ev_down);
-                CGEventPost(CG_HID_EVENT_TAP, ev_up);
+                CGEventPost(CG_EVENT_TAP_HID, ev_down);
+                CGEventPost(CG_EVENT_TAP_HID, ev_up);
                 if uppercase && is_alphabetic_vk(vk) {
-                    CGEventPost(CG_HID_EVENT_TAP, shift_up);
+                    CGEventPost(CG_EVENT_TAP_HID, shift_up);
                 }
             }
 
