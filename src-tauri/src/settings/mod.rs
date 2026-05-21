@@ -2,9 +2,11 @@
 // When adding or changing a backend-facing setting, keep the section and
 // default in sync with the TypeScript field definitions.
 
-#[derive(Clone, serde::Deserialize, serde::Serialize, Debug)]
+#[derive(Clone, serde::Deserialize, serde::Serialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SequencePoint {
+    #[serde(default)]
+    pub id: String,
     pub x: i32,
     pub y: i32,
     #[serde(default = "default_sequence_point_clicks")]
@@ -42,7 +44,6 @@ pub struct ClickerSettings {
     pub speed_variation: f64,
 
     pub double_click_enabled: bool,
-    pub double_click_delay: u32,
 
     pub click_limit_enabled: bool,
     pub click_limit: i32,
@@ -118,7 +119,6 @@ impl Default for ClickerSettings {
             speed_variation: 35.0,
 
             double_click_enabled: false,
-            double_click_delay: 40,
 
             click_limit_enabled: false,
             click_limit: 1000,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Settings } from "../../../store";
 import { useTranslation } from "../../../i18n";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   Disableable,
   NumInput,
@@ -16,12 +17,12 @@ interface Props {
   showInfo: boolean;
 }
 
-interface CursorPoint {
+interface CustomStopZonePickedPayload {
   x: number;
   y: number;
+  width: number;
+  height: number;
 }
-
-type PendingCapture = "topLeft" | "bottomRight";
 
 export default function CustomStopZoneSection({
   settings,
@@ -29,102 +30,93 @@ export default function CustomStopZoneSection({
   showInfo,
 }: Props) {
   const { t } = useTranslation();
-  const [capturingCursor, setCapturingCursor] = useState(false);
-  const [countdown, setCountdown] = useState<number | null>(null);
-  const [pendingCapture, setPendingCapture] = useState<PendingCapture | null>(
-    null,
-  );
-  const pendingCaptureRef = useRef<PendingCapture | null>(null);
-  const latestZoneRef = useRef({
-    x: settings.customStopZoneX,
-    y: settings.customStopZoneY,
-  });
+  const [drawingZone, setDrawingZone] = useState(false);
+  const updateRef = useRef(update);
 
-  const requestCursorPosition = useCallback(async (): Promise<CursorPoint> => {
-    setCapturingCursor(true);
+  useEffect(() => {
+    updateRef.current = update;
+  }, [update]);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlistenPicked: (() => void) | null = null;
+    let unlistenEnded: (() => void) | null = null;
+
+    void listen<CustomStopZonePickedPayload>(
+      "custom-stop-zone-picked",
+      (event) => {
+        updateRef.current({
+          customStopZoneEnabled: true,
+          customStopZoneX: event.payload.x,
+          customStopZoneY: event.payload.y,
+          customStopZoneWidth: Math.max(1, event.payload.width),
+          customStopZoneHeight: Math.max(1, event.payload.height),
+        });
+        setDrawingZone(false);
+      },
+    ).then((cleanup) => {
+      if (disposed) {
+        cleanup();
+      } else {
+        unlistenPicked = cleanup;
+      }
+    });
+
+    void listen("custom-stop-zone-pick-ended", () => {
+      setDrawingZone(false);
+    }).then((cleanup) => {
+      if (disposed) {
+        cleanup();
+      } else {
+        unlistenEnded = cleanup;
+      }
+    });
+
+    return () => {
+      disposed = true;
+      unlistenPicked?.();
+      unlistenEnded?.();
+      void invoke("cancel_custom_stop_zone_pick");
+    };
+  }, []);
+
+  const startCustomStopZonePick = useCallback(async () => {
+    setDrawingZone(true);
     try {
-      return await invoke<CursorPoint>("pick_position");
-    } finally {
-      setCapturingCursor(false);
+      await invoke("start_custom_stop_zone_pick");
+    } catch (error) {
+      setDrawingZone(false);
+      console.error("Failed to start custom stop zone picker", error);
+    }
+  }, []);
+
+  const cancelCustomStopZonePick = useCallback(async () => {
+    setDrawingZone(false);
+    try {
+      await invoke("cancel_custom_stop_zone_pick");
+    } catch (error) {
+      console.error("Failed to cancel custom stop zone picker", error);
     }
   }, []);
 
   useEffect(() => {
-    latestZoneRef.current = {
-      x: settings.customStopZoneX,
-      y: settings.customStopZoneY,
-    };
-  }, [settings.customStopZoneX, settings.customStopZoneY]);
+    if (!drawingZone) {
+      return;
+    }
 
-  useEffect(() => {
-    if (countdown === null || countdown < 0) return;
-
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev === null || prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [countdown]);
-
-  useEffect(() => {
-    if (countdown !== 0) return;
-
-    const captureAfterCountdown = async () => {
-      const action = pendingCaptureRef.current;
-      if (action === null) {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
         return;
       }
 
-      try {
-        const point = await requestCursorPosition();
-
-        if (action === "topLeft") {
-          update({
-            customStopZoneX: point.x,
-            customStopZoneY: point.y,
-          });
-          return;
-        }
-
-        const { x, y } = latestZoneRef.current;
-        const left = Math.min(x, point.x);
-        const top = Math.min(y, point.y);
-        const right = Math.max(x, point.x);
-        const bottom = Math.max(y, point.y);
-
-        update({
-          customStopZoneX: left,
-          customStopZoneY: top,
-          customStopZoneWidth: right - left + 1,
-          customStopZoneHeight: bottom - top + 1,
-        });
-      } finally {
-        pendingCaptureRef.current = null;
-        setCountdown(null);
-        setPendingCapture(null);
-      }
+      event.preventDefault();
+      event.stopPropagation();
+      void cancelCustomStopZonePick();
     };
 
-    void captureAfterCountdown();
-  }, [countdown, requestCursorPosition, update]);
-
-  const setCustomStopZoneTopLeft = () => {
-    pendingCaptureRef.current = "topLeft";
-    setPendingCapture("topLeft");
-    setCountdown(4);
-  };
-
-  const setCustomStopZoneBottomRight = () => {
-    pendingCaptureRef.current = "bottomRight";
-    setPendingCapture("bottomRight");
-    setCountdown(4);
-  };
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [cancelCustomStopZonePick, drawingZone]);
 
   return (
     <div className="adv-sectioncontainer">
@@ -143,7 +135,12 @@ export default function CustomStopZoneSection({
         </div>
         <ToggleBtn
           value={settings.customStopZoneEnabled}
-          onChange={(v) => update({ customStopZoneEnabled: v })}
+          onChange={(v) => {
+            if (!v && drawingZone) {
+              void cancelCustomStopZonePick();
+            }
+            update({ customStopZoneEnabled: v });
+          }}
         />
       </div>
       <CardDivider />
@@ -191,29 +188,14 @@ export default function CustomStopZoneSection({
                 type="button"
                 className="adv-secondary-btn"
                 onClick={() => {
-                  setCustomStopZoneTopLeft();
+                  void (drawingZone
+                    ? cancelCustomStopZonePick()
+                    : startCustomStopZonePick());
                 }}
-                disabled={capturingCursor || countdown !== null}
               >
-                {pendingCapture === "topLeft" && countdown !== null
-                  ? countdown === 0
-                    ? t("advanced.customStopZoneCapturing")
-                    : `${t("advanced.customStopZoneAddingIn")} ${countdown}...`
-                  : t("advanced.customStopZoneSetTopLeft")}
-              </button>
-              <button
-                type="button"
-                className="adv-secondary-btn"
-                onClick={() => {
-                  setCustomStopZoneBottomRight();
-                }}
-                disabled={capturingCursor || countdown !== null}
-              >
-                {pendingCapture === "bottomRight" && countdown !== null
-                  ? countdown === 0
-                    ? t("advanced.customStopZoneCapturing")
-                    : `${t("advanced.customStopZoneAddingIn")} ${countdown}...`
-                  : t("advanced.customStopZoneSetBottomRight")}
+                {drawingZone
+                  ? t("advanced.customStopZoneCancelDrawing")
+                  : t("advanced.customStopZoneDraw")}
               </button>
             </div>
           </div>

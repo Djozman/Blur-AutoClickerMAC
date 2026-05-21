@@ -593,8 +593,16 @@ pub fn start_hotkey_listener(app: AppHandle) {
                 .state::<ClickerState>()
                 .hotkey_capture_active
                 .load(Ordering::SeqCst);
+            let sequence_pick_active = app
+                .state::<ClickerState>()
+                .sequence_pick_active
+                .load(Ordering::SeqCst);
+            let custom_stop_zone_pick_active = app
+                .state::<ClickerState>()
+                .custom_stop_zone_pick_active
+                .load(Ordering::SeqCst);
 
-            if hotkey_capture_active {
+            if hotkey_capture_active || sequence_pick_active || custom_stop_zone_pick_active {
                 was_pressed = currently_pressed;
                 std::thread::sleep(Duration::from_millis(12));
                 continue;
