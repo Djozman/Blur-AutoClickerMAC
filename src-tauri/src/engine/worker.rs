@@ -10,6 +10,7 @@ use crate::ClickerSettings;
 use crate::ClickerState;
 use crate::ClickerStatusPayload;
 use crate::STATUS_EVENT;
+#[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetDoubleClickTime;
 
 use super::cycle::ClickCyclePlan;
@@ -246,8 +247,17 @@ fn interval_secs_from_settings(settings: &ClickerSettings) -> Result<f64, String
 }
 
 fn system_double_click_gap_ms() -> u32 {
-    let system_timeout_ms = unsafe { GetDoubleClickTime() };
-    ((system_timeout_ms as f64) * 0.9).floor() as u32
+    #[cfg(target_os = "windows")]
+    {
+        let system_timeout_ms = unsafe { GetDoubleClickTime() };
+        ((system_timeout_ms as f64) * 0.9).floor() as u32
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        // macOS doesn't have a system-wide double-click time API;
+        // use a reasonable default (matches typical macOS setting)
+        450
+    }
 }
 
 fn current_cycle_target(config: &ClickerConfig, sequence_index: usize) -> SequenceTarget {
