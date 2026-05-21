@@ -2,35 +2,14 @@ mod settings;
 use settings::ClickerSettings;
 mod app_state;
 mod autostart;
-#[cfg(target_os = "windows")]
 mod custom_stop_zone_picker;
 mod engine;
 mod hotkeys;
 mod overlay;
-#[cfg(target_os = "windows")]
 mod sequence_picker;
 mod single_instance;
 mod ui_commands;
 mod updates;
-
-// ── macOS stubs for Windows-only picker modules ──────────────────────────────
-#[cfg(not(target_os = "windows"))]
-mod custom_stop_zone_picker {
-    use tauri::AppHandle;
-    pub fn start_custom_stop_zone_pick_inner(_app: AppHandle) -> Result<(), String> {
-        Ok(())
-    }
-    pub fn cancel_custom_stop_zone_pick_inner(_app: &AppHandle) {}
-}
-
-#[cfg(not(target_os = "windows"))]
-mod sequence_picker {
-    use tauri::AppHandle;
-    pub fn start_sequence_point_pick_inner(_app: AppHandle) -> Result<(), String> {
-        Ok(())
-    }
-    pub fn cancel_sequence_point_pick_inner(_app: &AppHandle) {}
-}
 
 use crate::app_state::ClickerState;
 use crate::app_state::ClickerStatusPayload;
