@@ -730,111 +730,27 @@ pub fn get_click_count() -> i64 {
     CLICK_COUNT.load(Ordering::Relaxed)
 }
 
-// ── macOS precise sleep using mach_wait_until ────────────────────────────────
-
-#[cfg(target_os = "macos")]
-mod mach_sleep {
-    use std::time::Duration;
-
-    extern "C" {
-        fn mach_absolute_time() -> u64;
-        fn mach_wait_until(deadline: u64) -> i32;
-    }
-
-    #[derive(Clone, Copy)]
-    #[repr(C)]
-    struct Timebase {
-        numer: u32,
-        denom: u32,
-    }
-
-    extern "C" {
-        fn mach_timebase_info(info: *mut Timebase) -> i32;
-    }
-
-    fn timebase() -> Timebase {
-        use std::sync::OnceLock;
-        static TB: OnceLock<Timebase> = OnceLock::new();
-        *TB.get_or_init(|| {
-            let mut info = Timebase { numer: 0, denom: 0 };
-            unsafe { mach_timebase_info(&mut info) };
-            info
-        })
-    }
-
-    /// Convert nanoseconds to mach absolute time units.
-    /// 1 mach tick = numer/denom nanoseconds, so mach_ticks = ns * denom / numer.
-    fn ns_to_abs(ns: u64) -> u64 {
-        let tb = timebase();
-        // Handle the common case of 1:1 ratio (Apple Silicon)
-        if tb.numer == tb.denom {
-            return ns;
-        }
-        // ns * (denom / numer), avoiding overflow
-        (ns as u128 * tb.denom as u128 / tb.numer as u128) as u64
-    }
-
-    /// Sleep for up to `remaining` nanoseconds, polling `is_active` every ~1ms.
-    /// Falls back to spin-loop for sub-10µs waits where syscall overhead dominates.
-    pub fn sleep_precise(remaining: Duration, is_active: &dyn Fn() -> bool) {
-        let remaining_ns = remaining.as_nanos() as u64;
-
-        // Sub-10µs: just spin — mach_wait_until syscall overhead is ~3-10µs
-        if remaining_ns < 10_000 {
-            let deadline = std::time::Instant::now() + remaining;
-            while is_active() && std::time::Instant::now() < deadline {
-                std::hint::spin_loop();
-            }
-            return;
-        }
-
-        let deadline_abs = unsafe { mach_absolute_time() } + ns_to_abs(remaining_ns);
-        let chunk_ns = 1_000_000u64; // 1ms poll interval
-
-        loop {
-            if !is_active() {
-                return;
-            }
-            let now = unsafe { mach_absolute_time() };
-            if now >= deadline_abs {
-                return;
-            }
-            let wait_until = (now + ns_to_abs(chunk_ns)).min(deadline_abs);
-            unsafe { mach_wait_until(wait_until) };
-        }
-    }
-}
-
 pub fn sleep_interruptible(remaining: Duration, control: &RunControl) {
-    #[cfg(target_os = "macos")]
-    {
-        mach_sleep::sleep_precise(remaining, &|| control.is_active());
+    let deadline = Instant::now() + remaining;
+
+    if remaining.as_micros() < 100 {
+        while control.is_active() && Instant::now() < deadline {
+            std::hint::spin_loop();
+        }
         return;
     }
 
-    #[cfg(not(target_os = "macos"))]
-    {
-        let deadline = Instant::now() + remaining;
-
-        if remaining.as_micros() < 100 {
-            while control.is_active() && Instant::now() < deadline {
-                std::hint::spin_loop();
-            }
+    let chunk = Duration::from_millis(5);
+    loop {
+        if !control.is_active() {
             return;
         }
-
-        let chunk = Duration::from_millis(5);
-        loop {
-            if !control.is_active() {
-                return;
-            }
-            let now = Instant::now();
-            if now >= deadline {
-                return;
-            }
-            let left = deadline - now;
-            std::thread::sleep(left.min(chunk));
+        let now = Instant::now();
+        if now >= deadline {
+            return;
         }
+        let left = deadline - now;
+        std::thread::sleep(left.min(chunk));
     }
 }
 
