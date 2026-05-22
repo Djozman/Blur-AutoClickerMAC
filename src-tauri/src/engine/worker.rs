@@ -472,6 +472,8 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
             16usize
         } else if cps >= 1000.0 {
             8usize
+        } else if cps >= 500.0 {
+            8usize
         } else if cps >= 250.0 {
             4usize
         } else {

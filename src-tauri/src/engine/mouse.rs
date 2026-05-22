@@ -234,8 +234,9 @@ mod platform {
     const CG_MOUSE_BUTTON_LEFT: u32 = 0;
     const CG_MOUSE_BUTTON_RIGHT: u32 = 1;
     const CG_MOUSE_BUTTON_CENTER: u32 = 2;
-    const CG_HID_EVENT_TAP: u32 = 1; // kCGSessionEventTap
+    const CG_EVENT_TAP_HID: u32 = 0; // kCGHIDEventTap
     const CG_EVENT_MOUSE_MOVED: u32 = 5;
+    const CG_EVENT_SOURCE_STATE_HID: i32 = 1; // kCGEventSourceStateHIDSystemState
 
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -268,6 +269,7 @@ mod platform {
         ) -> *mut c_void;
         fn CGEventSetFlags(event: *mut c_void, flags: u64);
         fn CGEventPost(tap: u32, event: *mut c_void);
+        fn CGEventSourceCreate(state_id: i32) -> *mut c_void;
         fn CGDisplayBounds(display: u32) -> CGRect;
         fn CGMainDisplayID() -> u32;
         fn CGGetActiveDisplayList(
@@ -282,6 +284,20 @@ mod platform {
     // mach_absolute_time – always linked via libSystem
     extern "C" {
         fn mach_absolute_time() -> u64;
+    }
+
+    /// Wrapper around a CGEventSourceRef that is safe to share across threads.
+    struct EventSource(*mut c_void);
+    unsafe impl Send for EventSource {}
+    unsafe impl Sync for EventSource {}
+
+    /// Lazily create (once) and return a HID-system-state event source.
+    fn event_source() -> *mut c_void {
+        use std::sync::OnceLock;
+        static SOURCE: OnceLock<EventSource> = OnceLock::new();
+        SOURCE
+            .get_or_init(|| EventSource(unsafe { CGEventSourceCreate(CG_EVENT_SOURCE_STATE_HID) }))
+            .0
     }
 
     fn get_cursor_point() -> CGPoint {
@@ -370,11 +386,11 @@ mod platform {
             _ => CG_MOUSE_BUTTON_CENTER,
         };
         unsafe {
-            let event =
-                CGEventCreateMouseEvent(std::ptr::null_mut(), event_type, pos, mouse_button);
+            let source = event_source();
+            let event = CGEventCreateMouseEvent(source, event_type, pos, mouse_button);
             if !event.is_null() {
                 CGEventSetFlags(event, 0);
-                CGEventPost(CG_HID_EVENT_TAP, event);
+                CGEventPost(CG_EVENT_TAP_HID, event);
                 CFRelease(event);
             }
         }
@@ -391,9 +407,10 @@ mod platform {
             3 => CG_MOUSE_BUTTON_RIGHT,
             _ => CG_MOUSE_BUTTON_CENTER,
         };
+        let source = event_source();
         unsafe {
-            let ev_down = CGEventCreateMouseEvent(std::ptr::null_mut(), down, pos, mouse_button);
-            let ev_up = CGEventCreateMouseEvent(std::ptr::null_mut(), up, pos, mouse_button);
+            let ev_down = CGEventCreateMouseEvent(source, down, pos, mouse_button);
+            let ev_up = CGEventCreateMouseEvent(source, up, pos, mouse_button);
             if ev_down.is_null() || ev_up.is_null() {
                 if !ev_down.is_null() {
                     CFRelease(ev_down);
@@ -406,8 +423,8 @@ mod platform {
             CGEventSetFlags(ev_down, 0);
             CGEventSetFlags(ev_up, 0);
             for _ in 0..n {
-                CGEventPost(CG_HID_EVENT_TAP, ev_down);
-                CGEventPost(CG_HID_EVENT_TAP, ev_up);
+                CGEventPost(CG_EVENT_TAP_HID, ev_down);
+                CGEventPost(CG_EVENT_TAP_HID, ev_up);
             }
             CFRelease(ev_down);
             CFRelease(ev_up);
@@ -422,14 +439,14 @@ mod platform {
         };
         unsafe {
             let event = CGEventCreateMouseEvent(
-                std::ptr::null_mut(),
+                event_source(),
                 CG_EVENT_MOUSE_MOVED,
                 point,
                 CG_MOUSE_BUTTON_LEFT,
             );
             if !event.is_null() {
                 CGEventSetFlags(event, 0);
-                CGEventPost(CG_HID_EVENT_TAP, event);
+                CGEventPost(CG_EVENT_TAP_HID, event);
                 CFRelease(event);
             }
         }
