@@ -120,6 +120,7 @@ impl RunControl {
         }
     }
 
+    #[inline]
     pub fn is_current_generation(&self) -> bool {
         self.app
             .state::<ClickerState>()
@@ -128,6 +129,7 @@ impl RunControl {
             == self.expected_generation
     }
 
+    #[inline]
     pub fn is_active(&self) -> bool {
         let state = self.app.state::<ClickerState>();
         state.running.load(Ordering::Acquire)
@@ -445,8 +447,12 @@ fn plan_cycle_batch(
 pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
     CLICK_COUNT.store(0, Ordering::SeqCst);
 
+    #[cfg(target_os = "windows")]
     let mut current = 0u32;
-    unsafe { NtSetTimerResolution(10000, 1, &mut current) };
+    #[cfg(target_os = "windows")]
+    unsafe {
+        NtSetTimerResolution(10000, 1, &mut current)
+    };
 
     let cycle_freq = calibrate_cycle_freq();
     let cpu_cycles_start = thread_cycles();
@@ -526,6 +532,8 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
         state.active_sequence_tick.fetch_add(1, Ordering::SeqCst);
         emit_status(&control.app);
     }
+
+    let mut last_status_emit = Instant::now();
 
     while control.is_active() {
         failsafe_tick += 1;
@@ -681,9 +689,10 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
         click_count += cycle_batch.physical_clicks as i64;
         CLICK_COUNT.store(click_count, Ordering::Relaxed);
 
-        let remaining = next_batch_time.saturating_duration_since(Instant::now());
+        let now = Instant::now();
+        let remaining = next_batch_time.saturating_duration_since(now);
         if remaining > Duration::ZERO {
-            sleep_interruptible(remaining, &control);
+            sleep_interruptible(remaining, Some(now), &control);
         }
 
         if config.use_sequence() {
@@ -697,12 +706,20 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
                     .active_sequence_index
                     .store(sequence_index as i64, Ordering::SeqCst);
                 state.active_sequence_tick.fetch_add(1, Ordering::SeqCst);
-                emit_status(&control.app);
+                // Rate-limit: emit at most once per 100ms to avoid IPC overhead
+                let now = Instant::now();
+                if now.duration_since(last_status_emit) >= Duration::from_millis(100) {
+                    last_status_emit = now;
+                    emit_status(&control.app);
+                }
             }
         }
     }
 
-    unsafe { NtSetTimerResolution(10000, 0, &mut current) };
+    #[cfg(target_os = "windows")]
+    unsafe {
+        NtSetTimerResolution(10000, 0, &mut current)
+    };
 
     let elapsed_secs = start_time.elapsed().as_secs_f64();
     let cpu_cycles_end = thread_cycles();
@@ -732,16 +749,16 @@ pub fn get_click_count() -> i64 {
     CLICK_COUNT.load(Ordering::Relaxed)
 }
 
-pub fn sleep_interruptible(remaining: Duration, control: &RunControl) {
-    // Fast path: sleeps shorter than 5ms aren't worth chunking.
+pub fn sleep_interruptible(remaining: Duration, now: Option<Instant>, control: &RunControl) {
+    // Fast path: sleeps shorter than 8ms aren't worth chunking.
     // A single sleep here adds negligible stop latency.
-    if remaining.as_millis() < 5 {
+    if remaining.as_millis() < 8 {
         std::thread::sleep(remaining);
         return;
     }
 
-    let deadline = Instant::now() + remaining;
-    let chunk = Duration::from_millis(5);
+    let deadline = now.unwrap_or_else(Instant::now) + remaining;
+    let chunk = Duration::from_millis(8);
     loop {
         if !control.is_active() {
             return;
