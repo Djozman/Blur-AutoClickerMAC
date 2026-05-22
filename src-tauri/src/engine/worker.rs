@@ -763,14 +763,15 @@ mod mach_sleep {
     }
 
     /// Convert nanoseconds to mach absolute time units.
+    /// 1 mach tick = numer/denom nanoseconds, so mach_ticks = ns * denom / numer.
     fn ns_to_abs(ns: u64) -> u64 {
         let tb = timebase();
         // Handle the common case of 1:1 ratio (Apple Silicon)
         if tb.numer == tb.denom {
             return ns;
         }
-        // nanosecs * (numer / denom), avoiding overflow
-        (ns as u128 * tb.numer as u128 / tb.denom as u128) as u64
+        // ns * (denom / numer), avoiding overflow
+        (ns as u128 * tb.denom as u128 / tb.numer as u128) as u64
     }
 
     /// Sleep for up to `remaining` nanoseconds, polling `is_active` every ~1ms.
