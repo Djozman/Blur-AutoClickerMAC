@@ -407,27 +407,79 @@ mod platform {
             3 => CG_MOUSE_BUTTON_RIGHT,
             _ => CG_MOUSE_BUTTON_CENTER,
         };
-        let source = event_source();
-        unsafe {
-            let ev_down = CGEventCreateMouseEvent(source, down, pos, mouse_button);
-            let ev_up = CGEventCreateMouseEvent(source, up, pos, mouse_button);
-            if ev_down.is_null() || ev_up.is_null() {
-                if !ev_down.is_null() {
-                    CFRelease(ev_down);
-                }
-                if !ev_up.is_null() {
-                    CFRelease(ev_up);
-                }
-                return;
+
+        // Cache events across calls — the source, button, and position rarely change.
+        // Avoids CGEventCreateMouseEvent + CFRelease overhead on every batch.
+        struct CachedEvent(*mut c_void);
+        unsafe impl Send for CachedEvent {}
+        unsafe impl Sync for CachedEvent {}
+
+        use std::sync::Mutex;
+        static CACHE: Mutex<Option<(u32, u32, u32, f64, f64, CachedEvent, CachedEvent)>> =
+            Mutex::new(None);
+
+        let mut cache = CACHE.lock().unwrap();
+        let (ev_down, ev_up) = match &*cache {
+            Some((cached_down, cached_up, cached_btn, cached_x, cached_y, d, u))
+                if *cached_down == down
+                    && *cached_up == up
+                    && *cached_btn == mouse_button
+                    && (*cached_x - pos.x).abs() < 0.5
+                    && (*cached_y - pos.y).abs() < 0.5 =>
+            {
+                (d.0, u.0)
             }
-            CGEventSetFlags(ev_down, 0);
-            CGEventSetFlags(ev_up, 0);
+            _ => {
+                // Release old cached events if any
+                if let Some((_, _, _, _, _, ref old_d, ref old_u)) = *cache {
+                    unsafe {
+                        CFRelease(old_d.0);
+                        CFRelease(old_u.0);
+                    }
+                }
+                let source = event_source();
+                let (d, u) = unsafe {
+                    let d = CGEventCreateMouseEvent(source, down, pos, mouse_button);
+                    let u = CGEventCreateMouseEvent(source, up, pos, mouse_button);
+                    (d, u)
+                };
+                if d.is_null() || u.is_null() {
+                    if !d.is_null() {
+                        unsafe {
+                            CFRelease(d);
+                        }
+                    }
+                    if !u.is_null() {
+                        unsafe {
+                            CFRelease(u);
+                        }
+                    }
+                    *cache = None;
+                    return;
+                }
+                unsafe {
+                    CGEventSetFlags(d, 0);
+                    CGEventSetFlags(u, 0);
+                }
+                *cache = Some((
+                    down,
+                    up,
+                    mouse_button,
+                    pos.x,
+                    pos.y,
+                    CachedEvent(d),
+                    CachedEvent(u),
+                ));
+                (d, u)
+            }
+        };
+        drop(cache);
+
+        unsafe {
             for _ in 0..n {
                 CGEventPost(CG_EVENT_TAP_HID, ev_down);
                 CGEventPost(CG_EVENT_TAP_HID, ev_up);
             }
-            CFRelease(ev_down);
-            CFRelease(ev_up);
         }
     }
 
