@@ -1,5 +1,6 @@
 import type { RateInputMode, Settings } from "./store";
 import type { ClickInterval } from "./settingsSchema";
+import { getMaxClickSpeed } from "./settingsSchema";
 
 type CadenceSettings = Pick<
   Settings,
@@ -10,7 +11,9 @@ type CadenceSettings = Pick<
   | "durationMinutes"
   | "durationSeconds"
   | "durationMilliseconds"
->;
+> & {
+  extendedClickSpeedLimit?: boolean;
+};
 
 export type CadenceDurationFields = Pick<
   Settings,
@@ -88,7 +91,13 @@ export function convertDurationToRate(
 
   for (const interval of intervalCandidates) {
     const intervalMs = getIntervalMilliseconds(interval);
-    const speed = Math.max(1, Math.min(500, Math.round(intervalMs / totalMs)));
+    const speed = Math.max(
+      1,
+      Math.min(
+        getMaxClickSpeed(settings.extendedClickSpeedLimit),
+        Math.round(intervalMs / totalMs),
+      ),
+    );
     const actualMs = intervalMs / speed;
     const error = Math.abs(actualMs - totalMs);
 
@@ -134,9 +143,8 @@ export function getEffectiveClicksPerSecond(settings: CadenceSettings): number {
   return 1_000 / getEffectiveIntervalMs(settings);
 }
 
-export function getMaxDoubleClickDelayMs(settings: CadenceSettings): number {
-  const cps = Math.min(getEffectiveClicksPerSecond(settings), 50);
-  return cps > 0 ? Math.max(20, Math.floor(1000 / cps) - 2) : 9999;
+export function isDoubleClickSupported(settings: CadenceSettings): boolean {
+  return getEffectiveClicksPerSecond(settings) < 50;
 }
 
 export function formatDurationSummary(settings: CadenceSettings): string {

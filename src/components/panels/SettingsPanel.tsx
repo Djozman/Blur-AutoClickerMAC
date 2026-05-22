@@ -17,12 +17,18 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import ConfirmDialog from "../ConfirmDialog";
 import { AdvDropdown } from "./advanced/shared";
 import {
+  DEFAULT_MAX_CLICK_SPEED,
   DEFAULT_ACCENT_COLOR,
+  getMaxClickSpeed,
   MAX_PRESETS,
   PRESET_NAME_MAX_LENGTH,
 } from "../../settingsSchema";
 
-type PendingAction = "reset-settings" | "clear-stats" | null;
+type PendingAction =
+  | "reset-settings"
+  | "clear-stats"
+  | "extended-click-speed-limit"
+  | null;
 
 const LANGUAGE_DROPDOWN_OPTIONS = LANGUAGE_OPTIONS.map((option) => ({
   value: option.code,
@@ -399,6 +405,7 @@ export default function SettingsPanel({
     { value: "wide" as const, label: t("settings.advancedLayoutWide") },
     { value: "tall" as const, label: t("settings.advancedLayoutTall") },
   ];
+  const maxClickSpeed = getMaxClickSpeed(settings.extendedClickSpeedLimit);
 
   const handleConfirmResetSettings = async () => {
     setResetting(true);
@@ -422,6 +429,27 @@ export default function SettingsPanel({
       setResettingStats(false);
       setPendingAction(null);
     }
+  };
+
+  const handleExtendedClickSpeedLimitChange = (nextValue: boolean) => {
+    if (settings.extendedClickSpeedLimit === nextValue) {
+      return;
+    }
+
+    if (nextValue) {
+      setPendingAction("extended-click-speed-limit");
+      return;
+    }
+
+    update({
+      extendedClickSpeedLimit: false,
+      clickSpeed: Math.min(settings.clickSpeed, DEFAULT_MAX_CLICK_SPEED),
+    });
+  };
+
+  const handleConfirmExtendedClickSpeedLimit = () => {
+    update({ extendedClickSpeedLimit: true });
+    setPendingAction(null);
   };
 
   useEffect(() => {
@@ -790,6 +818,32 @@ export default function SettingsPanel({
               ))}
             </div>
           </div>
+
+          <div className="settings-row">
+            <div className="settings-label-group">
+              <span className="settings-label">
+                {t("settings.extendedClickSpeedLimit")}
+              </span>
+              <span className="settings-sublabel">
+                {t("settings.extendedClickSpeedLimitDescription", {
+                  limit: maxClickSpeed,
+                })}
+              </span>
+            </div>
+            <div className="settings-seg-group">
+              {onOffOptions.map((option) => (
+                <button
+                  key={String(option.value)}
+                  className={`settings-seg-btn ${settings.extendedClickSpeedLimit === option.value ? "active" : ""}`}
+                  onClick={() =>
+                    handleExtendedClickSpeedLimitChange(option.value)
+                  }
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </SettingsCard>
 
         <SettingsCard
@@ -984,6 +1038,14 @@ export default function SettingsPanel({
         confirmLabel={t("settings.clearStatsDialogConfirm")}
         busy={resettingStats}
         onConfirm={handleConfirmClearStats}
+        onCancel={() => setPendingAction(null)}
+      />
+      <ConfirmDialog
+        open={pendingAction === "extended-click-speed-limit"}
+        title={t("settings.extendedClickSpeedLimitDialogTitle")}
+        message={t("settings.extendedClickSpeedLimitDialogMessage")}
+        confirmLabel={t("settings.extendedClickSpeedLimitDialogConfirm")}
+        onConfirm={handleConfirmExtendedClickSpeedLimit}
         onCancel={() => setPendingAction(null)}
       />
     </div>

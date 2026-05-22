@@ -1,3 +1,4 @@
+use super::cycle::{execute_click_cycle, ClickCycleKind, ClickCyclePlan};
 use std::time::Duration;
 
 use super::rng::SmallRng;
@@ -233,7 +234,7 @@ mod platform {
     const CG_MOUSE_BUTTON_LEFT: u32 = 0;
     const CG_MOUSE_BUTTON_RIGHT: u32 = 1;
     const CG_MOUSE_BUTTON_CENTER: u32 = 2;
-    const CG_EVENT_TAP_HID: u32 = 0; // kCGHIDEventTap – lowest level, treated as hardware input
+    const CG_EVENT_TAP_HID: u32 = 1; // kCGSessionEventTap — session level (faster path)
     const CG_EVENT_MOUSE_MOVED: u32 = 5;
     const CG_EVENT_SOURCE_STATE_HID: i32 = 1; // kCGEventSourceStateHIDSystemState
 
@@ -406,26 +407,79 @@ mod platform {
             3 => CG_MOUSE_BUTTON_RIGHT,
             _ => CG_MOUSE_BUTTON_CENTER,
         };
-        unsafe {
-            let ev_down = CGEventCreateMouseEvent(event_source(), down, pos, mouse_button);
-            let ev_up = CGEventCreateMouseEvent(event_source(), up, pos, mouse_button);
-            if ev_down.is_null() || ev_up.is_null() {
-                if !ev_down.is_null() {
-                    CFRelease(ev_down);
-                }
-                if !ev_up.is_null() {
-                    CFRelease(ev_up);
-                }
-                return;
+
+        // Cache events across calls — the source, button, and position rarely change.
+        // Avoids CGEventCreateMouseEvent + CFRelease overhead on every batch.
+        struct CachedEvent(*mut c_void);
+        unsafe impl Send for CachedEvent {}
+        unsafe impl Sync for CachedEvent {}
+
+        use std::sync::Mutex;
+        static CACHE: Mutex<Option<(u32, u32, u32, f64, f64, CachedEvent, CachedEvent)>> =
+            Mutex::new(None);
+
+        let mut cache = CACHE.lock().unwrap();
+        let (ev_down, ev_up) = match &*cache {
+            Some((cached_down, cached_up, cached_btn, cached_x, cached_y, d, u))
+                if *cached_down == down
+                    && *cached_up == up
+                    && *cached_btn == mouse_button
+                    && (*cached_x - pos.x).abs() < 0.5
+                    && (*cached_y - pos.y).abs() < 0.5 =>
+            {
+                (d.0, u.0)
             }
-            CGEventSetFlags(ev_down, 0);
-            CGEventSetFlags(ev_up, 0);
+            _ => {
+                // Release old cached events if any
+                if let Some((_, _, _, _, _, ref old_d, ref old_u)) = *cache {
+                    unsafe {
+                        CFRelease(old_d.0);
+                        CFRelease(old_u.0);
+                    }
+                }
+                let source = event_source();
+                let (d, u) = unsafe {
+                    let d = CGEventCreateMouseEvent(source, down, pos, mouse_button);
+                    let u = CGEventCreateMouseEvent(source, up, pos, mouse_button);
+                    (d, u)
+                };
+                if d.is_null() || u.is_null() {
+                    if !d.is_null() {
+                        unsafe {
+                            CFRelease(d);
+                        }
+                    }
+                    if !u.is_null() {
+                        unsafe {
+                            CFRelease(u);
+                        }
+                    }
+                    *cache = None;
+                    return;
+                }
+                unsafe {
+                    CGEventSetFlags(d, 0);
+                    CGEventSetFlags(u, 0);
+                }
+                *cache = Some((
+                    down,
+                    up,
+                    mouse_button,
+                    pos.x,
+                    pos.y,
+                    CachedEvent(d),
+                    CachedEvent(u),
+                ));
+                (d, u)
+            }
+        };
+        drop(cache);
+
+        unsafe {
             for _ in 0..n {
                 CGEventPost(CG_EVENT_TAP_HID, ev_down);
                 CGEventPost(CG_EVENT_TAP_HID, ev_up);
             }
-            CFRelease(ev_down);
-            CFRelease(ev_up);
         }
     }
 
@@ -485,90 +539,33 @@ pub fn send_mouse_event(flags: u32) {
     platform::send_mouse_event(flags);
 }
 
-pub fn send_batch(down: u32, up: u32, n: usize, hold_ms: u32) {
-    platform::send_batch(down, up, n, hold_ms);
+#[inline]
+pub fn send_batch(down: u32, up: u32, n: usize) {
+    platform::send_batch(down, up, n, 0);
 }
 
-fn dispatch_click<FSend, FSleep, FActive>(
-    down: u32,
-    up: u32,
-    hold_ms: u32,
-    send_event: &mut FSend,
-    sleep_for: &mut FSleep,
-    is_active: &FActive,
-) -> bool
-where
-    FSend: FnMut(u32),
-    FSleep: FnMut(Duration),
-    FActive: Fn() -> bool,
-{
-    if !is_active() {
-        return false;
-    }
-
-    send_event(down);
-    if hold_ms > 0 {
-        sleep_for(Duration::from_millis(hold_ms as u64));
-        if !is_active() {
-            send_event(up);
-            return false;
-        }
-    }
-
-    send_event(up);
-    true
-}
-
-pub fn send_clicks_at(
-    down: u32,
-    up: u32,
-    count: usize,
-    hold_ms: u32,
-    use_double_click_gap: bool,
-    double_click_delay_ms: u32,
-    control: &RunControl,
-    cursor_pos: Option<(i32, i32)>,
-) {
+pub fn send_clicks(down: u32, up: u32, count: usize, plan: ClickCyclePlan, control: &RunControl) {
     if count == 0 {
         return;
     }
 
-    if !use_double_click_gap && hold_ms == 0 {
-        #[cfg(target_os = "macos")]
-        if let Some((x, y)) = cursor_pos {
-            platform::send_batch_at(
-                platform::CGPoint {
-                    x: x as f64,
-                    y: y as f64,
-                },
-                down,
-                up,
-                count,
-            );
-            return;
-        }
-        send_batch(down, up, count, hold_ms);
+    if plan.kind == ClickCycleKind::Single && count > 1 && plan.first_hold_ms == 0 {
+        send_batch(down, up, count);
         return;
     }
 
     let is_active = || control.is_active();
-    let mut send_event = |flags| send_mouse_event(flags);
     let mut sleep_for = |duration| sleep_interruptible(duration, control);
 
-    for index in 0..count {
-        if !dispatch_click(
-            down,
-            up,
-            hold_ms,
-            &mut send_event,
+    for _ in 0..count {
+        if !execute_click_cycle(
+            plan,
+            &mut || send_mouse_event(down),
+            &mut || send_mouse_event(up),
             &mut sleep_for,
             &is_active,
         ) {
             return;
-        }
-
-        if index + 1 < count && use_double_click_gap && double_click_delay_ms > 0 {
-            sleep_interruptible(Duration::from_millis(double_click_delay_ms as u64), control);
         }
     }
 }
@@ -711,51 +708,4 @@ pub fn smooth_move(
     rng: &mut SmallRng,
 ) {
     smooth_move_inner(start_x, start_y, end_x, end_y, duration_ms, rng, true);
-}
-
-#[cfg(test)]
-mod tests {
-    use std::cell::{Cell, RefCell};
-
-    use super::dispatch_click;
-
-    #[test]
-    fn dispatch_click_skips_events_when_run_is_already_stopped() {
-        let events = RefCell::new(Vec::new());
-        let mut send_event = |flags| events.borrow_mut().push(flags);
-        let mut sleep_for = |_| {};
-        let is_active = || false;
-
-        let sent = dispatch_click(1, 2, 5, &mut send_event, &mut sleep_for, &is_active);
-
-        assert!(!sent);
-        assert!(events.borrow().is_empty());
-    }
-
-    #[test]
-    fn dispatch_click_releases_button_when_run_stops_during_hold() {
-        let events = RefCell::new(Vec::new());
-        let mut send_event = |flags| events.borrow_mut().push(flags);
-        let active = Cell::new(true);
-        let mut sleep_for = |_| active.set(false);
-        let is_active = || active.get();
-
-        let sent = dispatch_click(1, 2, 5, &mut send_event, &mut sleep_for, &is_active);
-
-        assert!(!sent);
-        assert_eq!(&*events.borrow(), &[1, 2]);
-    }
-
-    #[test]
-    fn dispatch_click_sends_normal_down_and_up_when_run_stays_active() {
-        let events = RefCell::new(Vec::new());
-        let mut send_event = |flags| events.borrow_mut().push(flags);
-        let mut sleep_for = |_| {};
-        let is_active = || true;
-
-        let sent = dispatch_click(1, 2, 5, &mut send_event, &mut sleep_for, &is_active);
-
-        assert!(sent);
-        assert_eq!(&*events.borrow(), &[1, 2]);
-    }
 }

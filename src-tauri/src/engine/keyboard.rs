@@ -1,3 +1,8 @@
+#[cfg(target_os = "windows")]
+use super::cycle::{execute_click_cycle, ClickCycleKind, ClickCyclePlan};
+#[cfg(target_os = "windows")]
+use super::worker::{sleep_interruptible, RunControl};
+
 // ── Windows implementation ────────────────────────────────────────────────────
 
 #[cfg(target_os = "windows")]
@@ -15,7 +20,7 @@ mod platform {
     }
 
     #[inline]
-    fn make_keyboard_input(vk: u16, flags: u32) -> INPUT {
+    pub fn make_keyboard_input(vk: u16, flags: u32) -> INPUT {
         let (scan, extended) = vk_to_scan(vk);
         let ext_flag = if extended { KEYEVENTF_EXTENDEDKEY } else { 0 };
         INPUT {
@@ -33,7 +38,7 @@ mod platform {
     }
 
     #[inline]
-    fn send_key_event(vk: u16, flags: u32) {
+    pub fn send_key_event(vk: u16, flags: u32) {
         let input = make_keyboard_input(vk, flags);
         unsafe { SendInput(1, &input, std::mem::size_of::<INPUT>() as i32) };
     }
@@ -77,7 +82,7 @@ mod platform {
         }
     }
 
-    fn send_key_batch(vk: u16, n: usize, uppercase: bool) {
+    pub fn send_key_batch(vk: u16, n: usize, uppercase: bool) {
         let use_shift = should_hold_shift_for_case(vk, uppercase);
         let inputs_per_press = if use_shift { 4 } else { 2 };
         let mut inputs: Vec<INPUT> = Vec::with_capacity(n * inputs_per_press);
@@ -96,39 +101,32 @@ mod platform {
     pub fn send_key_presses(
         vk: u16,
         count: usize,
-        hold_ms: u32,
         uppercase: bool,
-        use_double_press_gap: bool,
-        double_press_delay_ms: u32,
+        plan: ClickCyclePlan,
         control: &RunControl,
     ) {
         if count == 0 {
             return;
         }
 
-        if !use_double_press_gap && count > 1 && hold_ms == 0 {
+        if plan.kind == ClickCycleKind::Single && count > 1 && plan.first_hold_ms == 0 {
             send_key_batch(vk, count, uppercase);
             return;
         }
 
-        for index in 0..count {
-            if !control.is_active() {
+        let use_shift = should_hold_shift_for_case(vk, uppercase);
+        let is_active = || control.is_active();
+        let mut sleep_for = |duration| sleep_interruptible(duration, control);
+
+        for _ in 0..count {
+            if !execute_click_cycle(
+                plan,
+                &mut || send_key_down(vk, use_shift),
+                &mut || send_key_up(vk, use_shift),
+                &mut sleep_for,
+                &is_active,
+            ) {
                 return;
-            }
-
-            let use_shift = should_hold_shift_for_case(vk, uppercase);
-            send_key_down(vk, use_shift);
-            if hold_ms > 0 {
-                sleep_interruptible(Duration::from_millis(hold_ms as u64), control);
-            }
-            send_key_up(vk, use_shift);
-
-            if !control.is_active() {
-                return;
-            }
-
-            if index + 1 < count && use_double_press_gap && double_press_delay_ms > 0 {
-                sleep_interruptible(Duration::from_millis(double_press_delay_ms as u64), control);
             }
         }
     }
@@ -138,11 +136,12 @@ mod platform {
 
 #[cfg(target_os = "macos")]
 mod platform {
+    use super::super::cycle::{execute_click_cycle, ClickCycleKind, ClickCyclePlan};
     use super::super::worker::{sleep_interruptible, RunControl};
     use std::ffi::c_void;
 
-    const CG_EVENT_TAP_HID: u32 = 0; // kCGHIDEventTap – lowest level, treated as hardware input
-    const CG_EVENT_SOURCE_STATE_HID: i32 = 1; // kCGEventSourceStateHIDSystemState
+    const CG_EVENT_TAP_HID: u32 = 1; // kCGSessionEventTap — session level (faster path)
+    const CG_EVENT_SOURCE_STATE_HID: i32 = 1;
 
     // Standard macOS virtual key codes for modifier keys
     const VK_SHIFT: u16 = 56;
@@ -256,49 +255,42 @@ mod platform {
     pub fn send_key_presses(
         vk: u16,
         count: usize,
-        hold_ms: u32,
         uppercase: bool,
-        use_double_press_gap: bool,
-        double_press_delay_ms: u32,
+        plan: ClickCyclePlan,
         control: &RunControl,
     ) {
         if count == 0 {
             return;
         }
 
-        let needs_shift = uppercase && is_alphabetic_vk(vk);
-
-        if !use_double_press_gap && count > 1 && hold_ms == 0 {
+        if plan.kind == ClickCycleKind::Single && count > 1 && plan.first_hold_ms == 0 {
             send_key_batch(vk, count, uppercase);
             return;
         }
 
-        for index in 0..count {
-            if !control.is_active() {
+        let needs_shift = uppercase && is_alphabetic_vk(vk);
+        let is_active = || control.is_active();
+        let mut sleep_for = |duration| sleep_interruptible(duration, control);
+
+        for _ in 0..count {
+            if !execute_click_cycle(
+                plan,
+                &mut || {
+                    if needs_shift {
+                        send_key_event(VK_SHIFT, true);
+                    }
+                    send_key_event(vk, true);
+                },
+                &mut || {
+                    send_key_event(vk, false);
+                    if needs_shift {
+                        send_key_event(VK_SHIFT, false);
+                    }
+                },
+                &mut sleep_for,
+                &is_active,
+            ) {
                 return;
-            }
-
-            if needs_shift {
-                send_key_event(VK_SHIFT, true);
-            }
-            send_key_event(vk, true);
-            if hold_ms > 0 {
-                sleep_interruptible(std::time::Duration::from_millis(hold_ms as u64), control);
-            }
-            send_key_event(vk, false);
-            if needs_shift {
-                send_key_event(VK_SHIFT, false);
-            }
-
-            if !control.is_active() {
-                return;
-            }
-
-            if index + 1 < count && use_double_press_gap && double_press_delay_ms > 0 {
-                sleep_interruptible(
-                    std::time::Duration::from_millis(double_press_delay_ms as u64),
-                    control,
-                );
             }
         }
     }

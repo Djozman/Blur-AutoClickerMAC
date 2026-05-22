@@ -1,6 +1,4 @@
 import "./AdvancedPanel.css";
-import { useEffect, useEffectEvent } from "react";
-import { getMaxDoubleClickDelayMs } from "../../../cadence";
 import type { Settings } from "../../../store";
 import CadenceSection from "./CadenceSection";
 import DutyCycleSection from "./DutyCycleSection";
@@ -27,45 +25,6 @@ export default function AdvancedPanel({
   activeSequenceTick,
 }: Props) {
   const isTallLayout = settings.advancedSequenceLayout === "tall";
-
-  const {
-    clickInterval,
-    clickSpeed,
-    doubleClickDelay,
-    durationHours,
-    durationMilliseconds,
-    durationMinutes,
-    durationSeconds,
-    rateInputMode,
-  } = settings;
-  const clampDoubleClickDelay = useEffectEvent((maxDelay: number) => {
-    update({ doubleClickDelay: maxDelay });
-  });
-
-  useEffect(() => {
-    const max = getMaxDoubleClickDelayMs({
-      clickInterval,
-      clickSpeed,
-      rateInputMode,
-      durationHours,
-      durationMinutes,
-      durationSeconds,
-      durationMilliseconds,
-    });
-    if (doubleClickDelay > max) {
-      clampDoubleClickDelay(max);
-    }
-  }, [
-    clickInterval,
-    clickSpeed,
-    doubleClickDelay,
-    durationHours,
-    durationMilliseconds,
-    durationMinutes,
-    durationSeconds,
-    rateInputMode,
-  ]);
-
   const sequenceSection = (
     <SequenceSection
       settings={settings}
@@ -80,16 +39,30 @@ export default function AdvancedPanel({
   const mainSections = (
     <>
       <CadenceSection settings={settings} update={update} showInfo={showInfo} />
-      <DutyCycleSection settings={settings} update={update} showInfo={showInfo} />
+      <DutyCycleSection
+        settings={settings}
+        update={update}
+        showInfo={showInfo}
+      />
       <LimitsSection settings={settings} update={update} showInfo={showInfo} />
-      <SpeedVariationSection settings={settings} update={update} showInfo={showInfo} />
-      <DoubleClickSection settings={settings} update={update} showInfo={showInfo} />
+      <SpeedVariationSection
+        settings={settings}
+        update={update}
+        showInfo={showInfo}
+      />
+      <DoubleClickSection
+        settings={settings}
+        update={update}
+        showInfo={showInfo}
+      />
     </>
   );
 
   return (
     <div className="adv-panel adv-panel-text">
-      <div className={`adv-columns${isTallLayout ? " adv-columns--tall" : " adv-columns--wide"}`}>
+      <div
+        className={`adv-columns${isTallLayout ? " adv-columns--tall" : " adv-columns--wide"}`}
+      >
         {isTallLayout ? (
           <div className="adv-col">
             {mainSections}
@@ -97,12 +70,8 @@ export default function AdvancedPanel({
           </div>
         ) : (
           <>
-            <div className="adv-col">
-              {mainSections}
-            </div>
-            <div className="adv-col adv-col--sequence">
-              {sequenceSection}
-            </div>
+            <div className="adv-col">{mainSections}</div>
+            <div className="adv-col adv-col--sequence">{sequenceSection}</div>
           </>
         )}
       </div>
