@@ -140,7 +140,7 @@ mod platform {
     use super::super::worker::{sleep_interruptible, RunControl};
     use std::ffi::c_void;
 
-    const CG_EVENT_TAP_HID: u32 = 0;
+    const CG_EVENT_TAP_HID: u32 = 1; // kCGSessionEventTap — session level (faster path)
     const CG_EVENT_SOURCE_STATE_HID: i32 = 1;
 
     // Standard macOS virtual key codes for modifier keys

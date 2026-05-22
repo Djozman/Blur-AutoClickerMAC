@@ -234,7 +234,7 @@ mod platform {
     const CG_MOUSE_BUTTON_LEFT: u32 = 0;
     const CG_MOUSE_BUTTON_RIGHT: u32 = 1;
     const CG_MOUSE_BUTTON_CENTER: u32 = 2;
-    const CG_EVENT_TAP_HID: u32 = 0; // kCGHIDEventTap
+    const CG_EVENT_TAP_HID: u32 = 1; // kCGSessionEventTap — session level (faster path)
     const CG_EVENT_MOUSE_MOVED: u32 = 5;
     const CG_EVENT_SOURCE_STATE_HID: i32 = 1; // kCGEventSourceStateHIDSystemState
 
