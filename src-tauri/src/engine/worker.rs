@@ -124,14 +124,14 @@ impl RunControl {
         self.app
             .state::<ClickerState>()
             .run_generation
-            .load(Ordering::SeqCst)
+            .load(Ordering::Acquire)
             == self.expected_generation
     }
 
     pub fn is_active(&self) -> bool {
         let state = self.app.state::<ClickerState>();
-        state.running.load(Ordering::SeqCst)
-            && state.run_generation.load(Ordering::SeqCst) == self.expected_generation
+        state.running.load(Ordering::Acquire)
+            && state.run_generation.load(Ordering::Acquire) == self.expected_generation
     }
 }
 
@@ -506,7 +506,7 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
     let mut monitors = get_cached_monitors();
     let mut failsafe_tick: u32 = 0;
     let monitor_refresh_interval: u32 = if cps > 100.0 { 64 } else { 8 };
-    let failsafe_skip: u32 = if cps > 100.0 { 3 } else { 1 };
+    let failsafe_skip: u32 = if cps > 100.0 { 8 } else { 1 };
     let mut moved_sequence_index: Option<usize> = None;
 
     println!("Clicking at: {}, {}", target_x, target_y);
@@ -529,7 +529,7 @@ pub fn start_clicker(config: ClickerConfig, control: RunControl) -> RunOutcome {
 
     while control.is_active() {
         failsafe_tick += 1;
-        let cursor_now = if failsafe_tick % failsafe_skip == 0 {
+        let _cursor_now = if failsafe_tick % failsafe_skip == 0 {
             let pos = get_cursor_pos();
             // Refresh monitor rects periodically (they rarely change)
             if failsafe_tick % monitor_refresh_interval == 0 {
@@ -733,15 +733,14 @@ pub fn get_click_count() -> i64 {
 }
 
 pub fn sleep_interruptible(remaining: Duration, control: &RunControl) {
-    let deadline = Instant::now() + remaining;
-
-    if remaining.as_micros() < 100 {
-        while control.is_active() && Instant::now() < deadline {
-            std::hint::spin_loop();
-        }
+    // Fast path: sleeps shorter than 5ms aren't worth chunking.
+    // A single sleep here adds negligible stop latency.
+    if remaining.as_millis() < 5 {
+        std::thread::sleep(remaining);
         return;
     }
 
+    let deadline = Instant::now() + remaining;
     let chunk = Duration::from_millis(5);
     loop {
         if !control.is_active() {
