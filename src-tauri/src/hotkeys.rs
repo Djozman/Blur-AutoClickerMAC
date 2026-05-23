@@ -63,9 +63,6 @@ mod vk_codes {
     pub const VK_OEM_PERIOD: u16 = 0x2F; // .
     pub const VK_OEM_102: u16 = 0x0A; // IntlBackslash (non-US)
 
-    // Function keys (non-sequential on macOS)
-    pub const VK_F1: u16 = 0x7A;
-
     // Numpad
     pub const VK_NUMPAD0: u16 = 0x52;
     pub const VK_NUMPAD1: u16 = 0x53;
@@ -125,7 +122,7 @@ mod macos_event_tap {
             place: u32,
             options: u32,
             events_of_interest: u64,
-            callback: extern "C" fn(
+            callback: unsafe extern "C" fn(
                 *mut std::ffi::c_void,
                 u32,
                 *mut std::ffi::c_void,
@@ -151,7 +148,6 @@ mod macos_event_tap {
             mode: *mut std::ffi::c_void,
         );
         fn CFRunLoopRun();
-        fn CFRunLoopStop(rl: *mut std::ffi::c_void);
         static kCFRunLoopCommonModes: *mut std::ffi::c_void;
     }
 
@@ -208,7 +204,7 @@ mod macos_event_tap {
         (atom.load(Ordering::SeqCst) & mask) != 0
     }
 
-    extern "C" fn callback(
+    unsafe extern "C" fn callback(
         _proxy: *mut std::ffi::c_void,
         event_type: u32,
         event: *mut std::ffi::c_void,

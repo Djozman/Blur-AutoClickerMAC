@@ -235,7 +235,6 @@ mod platform {
     const CG_MOUSE_BUTTON_RIGHT: u32 = 1;
     const CG_MOUSE_BUTTON_CENTER: u32 = 2;
     const CG_EVENT_TAP_HID: u32 = 1; // kCGSessionEventTap — session level (faster path)
-    const CG_EVENT_MOUSE_MOVED: u32 = 5;
     const CG_EVENT_SOURCE_STATE_HID: i32 = 1; // kCGEventSourceStateHIDSystemState
 
     #[repr(C)]
@@ -279,11 +278,6 @@ mod platform {
         ) -> u32;
         fn CGDisplayMoveCursorToPoint(display: u32, point: CGPoint);
         fn CFRelease(cf: *mut c_void);
-    }
-
-    // mach_absolute_time – always linked via libSystem
-    extern "C" {
-        fn mach_absolute_time() -> u64;
     }
 
     /// Wrapper around a CGEventSourceRef that is safe to share across threads.
@@ -479,27 +473,6 @@ mod platform {
             for _ in 0..n {
                 CGEventPost(CG_EVENT_TAP_HID, ev_down);
                 CGEventPost(CG_EVENT_TAP_HID, ev_up);
-            }
-        }
-    }
-
-    // Used by smooth_move to post a mouse-moved event after CGDisplayMoveCursorToPoint
-    pub fn post_mouse_moved(x: i32, y: i32) {
-        let point = CGPoint {
-            x: x as f64,
-            y: y as f64,
-        };
-        unsafe {
-            let event = CGEventCreateMouseEvent(
-                event_source(),
-                CG_EVENT_MOUSE_MOVED,
-                point,
-                CG_MOUSE_BUTTON_LEFT,
-            );
-            if !event.is_null() {
-                CGEventSetFlags(event, 0);
-                CGEventPost(CG_EVENT_TAP_HID, event);
-                CFRelease(event);
             }
         }
     }
