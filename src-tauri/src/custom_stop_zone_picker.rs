@@ -1,11 +1,12 @@
+use std::sync::atomic::Ordering;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::engine::mouse::current_cursor_position;
 use crate::ClickerState;
 
+#[cfg(target_os = "windows")]
 const PREVIEW_EMIT_INTERVAL: Duration = Duration::from_millis(16);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
@@ -278,7 +279,7 @@ mod platform {
 
     use tauri::{AppHandle, Emitter, Manager};
 
-    use super::{current_cursor_position, normalize_rect, picker, StopZoneRect};
+    use super::{normalize_rect, picker, StopZoneRect};
     use crate::ClickerState;
 
     const NX_RMOUSEDOWN: u32 = 4;
@@ -327,7 +328,6 @@ mod platform {
         fn CFRunLoopGetCurrent() -> *mut c_void;
         fn CFRunLoopAddSource(rl: *mut c_void, source: *mut c_void, mode: *mut c_void);
         fn CFRunLoopRun();
-        fn CFRunLoopStop(rl: *mut c_void);
         fn CFRelease(cf: *mut c_void);
         static kCFRunLoopCommonModes: *mut c_void;
     }
@@ -428,7 +428,7 @@ mod platform {
         }
     }
 
-    pub fn stop_hooks(notify_overlay: bool) -> Option<AppHandle> {
+    pub fn stop_hooks(_notify_overlay: bool) -> Option<AppHandle> {
         let app = {
             let mut runtime = picker().lock().unwrap();
             let app = runtime.app.clone();
@@ -475,7 +475,6 @@ mod platform {
             let start = picker().lock().unwrap().drawing_start;
             if let Some(start) = start {
                 let rect = normalize_rect(start, (end_x, end_y));
-                drop(picker());
                 super::finish_custom_stop_zone_pick(rect);
             }
             return true;
@@ -536,13 +535,6 @@ pub fn cancel_custom_stop_zone_pick_inner(app: &AppHandle) {
     let app_opt = platform::stop_hooks(true);
     if let Some(a) = app_opt.or(Some(app.clone())) {
         let _ = crate::overlay::hide_custom_stop_zone_pick_overlay(&a);
-    }
-}
-
-fn cancel_custom_stop_zone_pick_from_hook() {
-    let app = platform::stop_hooks(true);
-    if let Some(app) = app {
-        let _ = crate::overlay::hide_custom_stop_zone_pick_overlay(&app);
     }
 }
 

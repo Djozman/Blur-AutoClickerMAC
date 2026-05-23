@@ -310,12 +310,10 @@ mod platform {
 mod platform {
     use std::ffi::c_void;
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::mpsc;
-    use std::time::Duration;
 
     use tauri::{AppHandle, Emitter, Manager};
 
-    use super::{current_cursor_position, picker, SequencePointPickedPayload};
+    use super::{picker, SequencePointPickedPayload};
     use crate::engine::mouse::{current_virtual_screen_rect, VirtualScreenRect};
     use crate::ClickerState;
 
@@ -371,7 +369,6 @@ mod platform {
         fn CFRunLoopGetCurrent() -> *mut c_void;
         fn CFRunLoopAddSource(rl: *mut c_void, source: *mut c_void, mode: *mut c_void);
         fn CFRunLoopRun();
-        fn CFRunLoopStop(rl: *mut c_void);
         fn CFRelease(cf: *mut c_void);
         static kCFRunLoopCommonModes: *mut c_void;
     }
