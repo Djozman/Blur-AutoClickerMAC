@@ -1,12 +1,9 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::engine::mouse::{
-    current_cursor_position, current_virtual_screen_rect, VirtualScreenRect,
-};
+use crate::engine::mouse::current_cursor_position;
 use crate::ClickerState;
 
 const PREVIEW_EMIT_INTERVAL: Duration = Duration::from_millis(16);
@@ -282,7 +279,6 @@ mod platform {
     use tauri::{AppHandle, Emitter, Manager};
 
     use super::{current_cursor_position, normalize_rect, picker, StopZoneRect};
-    use crate::engine::mouse::{current_virtual_screen_rect, VirtualScreenRect};
     use crate::ClickerState;
 
     const NX_RMOUSEDOWN: u32 = 4;

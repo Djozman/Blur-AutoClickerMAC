@@ -1,12 +1,11 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::engine::mouse::{
-    current_cursor_position, current_virtual_screen_rect, VirtualScreenRect,
-};
+use crate::engine::mouse::current_cursor_position;
+#[cfg(target_os = "macos")]
+use crate::engine::mouse::{current_virtual_screen_rect, VirtualScreenRect};
 use crate::ClickerState;
 
 const CURSOR_EMIT_INTERVAL: Duration = Duration::from_millis(16);

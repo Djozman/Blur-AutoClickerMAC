@@ -116,7 +116,7 @@ mod platform {
 
         let use_shift = should_hold_shift_for_case(vk, uppercase);
         let is_active = || control.is_active();
-        let mut sleep_for = |duration| sleep_interruptible(duration, control);
+        let mut sleep_for = |duration| sleep_interruptible(duration, None, control);
 
         for _ in 0..count {
             if !execute_click_cycle(
@@ -171,30 +171,18 @@ mod platform {
     }
 
     pub fn is_alphabetic_vk(vk: u16) -> bool {
-        // macOS virtual key codes for letters: A = 0, B = 11, ... Z = 6
-        // But upstream uses Windows VK codes (A=65..Z=90).
-        // We accept both macOS raw VK codes (0..25) and Windows VK codes (65..90).
         (vk < 26) || (b'A' as u16..=b'Z' as u16).contains(&vk)
     }
 
-    /// Convert a Windows-style virtual key code to a macOS virtual key code.
     fn win_vk_to_mac_vk(win_vk: u16) -> u16 {
         match win_vk {
-            // Letters: A-Z (Windows 65-90 -> macOS 0-25)
             65..=90 => win_vk - 65,
-            // Digits: 0-9 (Windows 48-57 -> macOS 29-38)
             48..=57 => win_vk - 48 + 29,
-            // Space
             32 => 49,
-            // Enter/Return
             13 => 36,
-            // Escape
             27 => 53,
-            // Tab
             9 => 48,
-            // Backspace/Delete
             8 => 51,
-            // Fallback: use as-is (may already be a mac VK for modifiers etc.)
             _ => win_vk,
         }
     }
@@ -225,7 +213,6 @@ mod platform {
             } else {
                 std::ptr::null_mut()
             };
-
             if ev_down.is_null() || ev_up.is_null() {
                 if !ev_down.is_null() {
                     CFRelease(ev_down);
@@ -235,7 +222,6 @@ mod platform {
                 }
                 return;
             }
-
             for _ in 0..n {
                 if uppercase && is_alphabetic_vk(vk) {
                     CGEventPost(CG_EVENT_TAP_HID, shift_down);
@@ -246,7 +232,6 @@ mod platform {
                     CGEventPost(CG_EVENT_TAP_HID, shift_up);
                 }
             }
-
             CFRelease(ev_down);
             CFRelease(ev_up);
         }
@@ -262,15 +247,13 @@ mod platform {
         if count == 0 {
             return;
         }
-
         if plan.kind == ClickCycleKind::Single && count > 1 && plan.first_hold_ms == 0 {
             send_key_batch(vk, count, uppercase);
             return;
         }
-
         let needs_shift = uppercase && is_alphabetic_vk(vk);
         let is_active = || control.is_active();
-        let mut sleep_for = |duration| sleep_interruptible(duration, control);
+        let mut sleep_for = |duration| sleep_interruptible(duration, None, control);
 
         for _ in 0..count {
             if !execute_click_cycle(

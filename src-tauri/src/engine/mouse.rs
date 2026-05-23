@@ -555,7 +555,7 @@ pub fn send_clicks(down: u32, up: u32, count: usize, plan: ClickCyclePlan, contr
     }
 
     let is_active = || control.is_active();
-    let mut sleep_for = |duration| sleep_interruptible(duration, control);
+    let mut sleep_for = |duration| sleep_interruptible(duration, None, control);
 
     for _ in 0..count {
         if !execute_click_cycle(
