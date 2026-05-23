@@ -298,6 +298,7 @@ fn emit_sequence_points(
 
 // ---- Background timer ----
 
+#[cfg_attr(not(target_os = "windows"), allow(unused_variables))]
 pub fn check_auto_hide(app: &AppHandle) {
     if SEQUENCE_PICK_OVERLAY_ACTIVE.load(Ordering::SeqCst)
         || CUSTOM_STOP_ZONE_PICK_OVERLAY_ACTIVE.load(Ordering::SeqCst)
@@ -311,13 +312,11 @@ pub fn check_auto_hide(app: &AppHandle) {
             // ↑ auto-hide after timer
 
             *last = None;
+            log::info!("[Overlay] Auto-hide: hiding window");
+            #[cfg(target_os = "windows")]
             if let Some(window) = app.get_webview_window("overlay") {
-                log::info!("[Overlay] Auto-hide: hiding window");
-                #[cfg(target_os = "windows")]
-                {
-                    if let Ok(hwnd) = get_hwnd(&window) {
-                        unsafe { ShowWindow(hwnd, 0) };
-                    }
+                if let Ok(hwnd) = get_hwnd(&window) {
+                    unsafe { ShowWindow(hwnd, 0) };
                 }
             }
         }

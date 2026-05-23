@@ -21,6 +21,7 @@ use super::mouse::{
 };
 use super::rng::SmallRng;
 use super::ClickerConfig;
+#[cfg(target_os = "windows")]
 use super::NtSetTimerResolution;
 use super::RunOutcome;
 use super::SequenceTarget;

@@ -69,7 +69,7 @@ extern "system" {
 }
 
 #[cfg(not(target_os = "windows"))]
-#[allow(non_snake_case)]
+#[allow(dead_code, non_snake_case)]
 pub unsafe fn NtSetTimerResolution(_desired: u32, _set: u8, _current: *mut u32) -> u32 {
     0
 }
