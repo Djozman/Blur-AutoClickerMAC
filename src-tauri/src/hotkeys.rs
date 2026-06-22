@@ -28,6 +28,9 @@ mod vk_codes {
     pub const VK_RMENU: u16 = 0x3D; // right Option
     pub const VK_SHIFT: u16 = 0x38; // left Shift
     pub const VK_RSHIFT: u16 = 0x3C; // right Shift
+    pub const VK_LCONTROL: u16 = VK_CONTROL;
+    pub const VK_LMENU: u16 = VK_MENU;
+    pub const VK_LSHIFT: u16 = VK_SHIFT;
     pub const VK_LWIN: u16 = 0x37; // left Command
     pub const VK_RWIN: u16 = 0x36; // right Command
 
@@ -682,6 +685,30 @@ pub fn is_hotkey_binding_pressed(binding: &HotkeyBinding, strict: bool) -> bool 
     is_vk_down(binding.main_vk)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ModifierGroup {
+    Ctrl,
+    Alt,
+    Shift,
+    Super,
+}
+
+fn modifier_group_for_vk(vk: i32) -> Option<ModifierGroup> {
+    match vk {
+        v if v == VK_CONTROL as i32 || v == VK_LCONTROL as i32 || v == VK_RCONTROL as i32 => {
+            Some(ModifierGroup::Ctrl)
+        }
+        v if v == VK_MENU as i32 || v == VK_LMENU as i32 || v == VK_RMENU as i32 => {
+            Some(ModifierGroup::Alt)
+        }
+        v if v == VK_SHIFT as i32 || v == VK_LSHIFT as i32 || v == VK_RSHIFT as i32 => {
+            Some(ModifierGroup::Shift)
+        }
+        v if v == VK_LWIN as i32 || v == VK_RWIN as i32 => Some(ModifierGroup::Super),
+        _ => None,
+    }
+}
+
 fn modifiers_match(
     binding: &HotkeyBinding,
     ctrl_down: bool,
@@ -704,16 +731,17 @@ fn modifiers_match(
     }
 
     if strict {
-        if ctrl_down && !binding.ctrl {
+        let main_modifier_group = modifier_group_for_vk(binding.main_vk);
+        if ctrl_down && !binding.ctrl && main_modifier_group != Some(ModifierGroup::Ctrl) {
             return false;
         }
-        if alt_down && !binding.alt {
+        if alt_down && !binding.alt && main_modifier_group != Some(ModifierGroup::Alt) {
             return false;
         }
-        if shift_down && !binding.shift {
+        if shift_down && !binding.shift && main_modifier_group != Some(ModifierGroup::Shift) {
             return false;
         }
-        if super_down && !binding.super_key {
+        if super_down && !binding.super_key && main_modifier_group != Some(ModifierGroup::Super) {
             return false;
         }
     }
@@ -774,6 +802,18 @@ fn parse_named_key_token(token: &str) -> Option<(i32, String)> {
         "left" | "arrowleft" => Some(binding(VK_LEFT as i32, "left")),
         "right" | "arrowright" => Some(binding(VK_RIGHT as i32, "right")),
         "esc" | "escape" => Some(binding(VK_ESCAPE as i32, "escape")),
+        "leftctrl" | "ctrlleft" | "lctrl" => Some(binding(VK_LCONTROL as i32, "leftctrl")),
+        "rightctrl" | "ctrlright" | "rctrl" => Some(binding(VK_RCONTROL as i32, "rightctrl")),
+        "leftshift" | "shiftleft" | "lshift" => Some(binding(VK_LSHIFT as i32, "leftshift")),
+        "rightshift" | "shiftright" | "rshift" => Some(binding(VK_RSHIFT as i32, "rightshift")),
+        "leftalt" | "altleft" | "lalt" => Some(binding(VK_LMENU as i32, "leftalt")),
+        "rightalt" | "altright" | "ralt" | "altgr" => Some(binding(VK_RMENU as i32, "rightalt")),
+        "leftsuper" | "superleft" | "leftwin" | "winleft" | "lwin" => {
+            Some(binding(VK_LWIN as i32, "leftsuper"))
+        }
+        "rightsuper" | "superright" | "rightwin" | "winright" | "rwin" => {
+            Some(binding(VK_RWIN as i32, "rightsuper"))
+        }
         "capslock" => Some(binding(VK_CAPITAL as i32, "capslock")),
         "numlock" => Some(binding(VK_NUMLOCK as i32, "numlock")),
         "scrolllock" => Some(binding(VK_SCROLL as i32, "scrolllock")),
@@ -880,6 +920,35 @@ mod tests {
     fn empty_hotkeys_are_rejected() {
         assert!(parse_hotkey_binding("").is_err());
         assert!(parse_hotkey_binding("ctrl+").is_err());
+    }
+
+    #[test]
+    fn standalone_modifier_tokens_round_trip() {
+        for token in [
+            "leftctrl",
+            "rightctrl",
+            "leftshift",
+            "rightshift",
+            "leftalt",
+            "rightalt",
+            "leftsuper",
+            "rightsuper",
+        ] {
+            let binding = parse_hotkey_binding(token).expect("modifier key should parse");
+            assert_eq!(binding.key_token, token);
+            assert!(!binding.ctrl);
+            assert!(!binding.alt);
+            assert!(!binding.shift);
+            assert!(!binding.super_key);
+            assert_eq!(format_hotkey_binding(&binding), token);
+        }
+    }
+
+    #[test]
+    fn standalone_modifier_main_key_is_not_extra_in_strict_mode() {
+        let binding = parse_hotkey_binding("leftalt").expect("left alt should parse");
+        assert!(modifiers_match(&binding, false, true, false, false, true));
+        assert!(!modifiers_match(&binding, true, true, false, false, true));
     }
 
     #[test]
