@@ -1,4 +1,5 @@
 import {
+  memo,
   type CSSProperties,
   type ChangeEvent,
   type FocusEvent,
@@ -11,13 +12,13 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { useTranslation } from "../../../i18n";
+
 import { normalizeIntegerRaw } from "../../../numberInput";
 import UnavailableReason from "../../UnavailableReason";
 
 // ToggleBtn ← These are here just for some visual space
 
-export function ToggleBtn({
+const ToggleBtn = memo(function ToggleBtn({
   value,
   onChange,
   disabled = false,
@@ -28,8 +29,6 @@ export function ToggleBtn({
   disabled?: boolean;
   disabledReason?: string;
 }) {
-  const { t } = useTranslation();
-
   useEffect(() => {
     if (disabled && value) {
       onChange(false);
@@ -43,14 +42,14 @@ export function ToggleBtn({
         onClick={() => !disabled && onChange(false)}
         disabled={disabled}
       >
-        {t("common.off")}
+        Off
       </button>
       <button
         className={`adv-toggle-btn adv-toggle-on ${value ? "active" : ""} ${disabled ? "adv-disabled" : ""}`}
         onClick={() => !disabled && onChange(true)}
         disabled={disabled}
       >
-        {t("common.on")}
+        On
       </button>
     </div>
   );
@@ -60,7 +59,9 @@ export function ToggleBtn({
   ) : (
     group
   );
-}
+}, (prev, next) => prev.value === next.value && prev.disabled === next.disabled && prev.disabledReason === next.disabledReason);
+
+export { ToggleBtn };
 
 // Disableable
 
@@ -73,14 +74,12 @@ export function Disableable({
   disabledReason?: string;
   children: ReactNode;
 }) {
-  const { t } = useTranslation();
-
   const content = (
     <div className="adv-disabled-container">
       <div className={enabled ? "" : "adv-disabled-content"}>{children}</div>
       {!enabled && (
         <div className="adv-disabled-overlay">
-          <span className="adv-disabled-label">{t("common.disabled")}</span>
+          <span className="adv-disabled-label">Disabled</span>
         </div>
       )}
     </div>
@@ -106,14 +105,17 @@ export function NumInput({
   min,
   max,
   style,
+  hoverWheel = true,
 }: {
   value: number;
   onChange: (v: number) => void;
   min?: number;
   max?: number;
   style?: CSSProperties;
+  hoverWheel?: boolean;
 }) {
   const ref = useRef<HTMLInputElement>(null);
+  const wheelRef = useRef(false);
   const clampValue = (next: number) => {
     let clamped = next;
     if (min !== undefined && clamped < min) clamped = min;
@@ -122,6 +124,10 @@ export function NumInput({
   };
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (wheelRef.current) {
+      if (ref.current) ref.current.value = String(value);
+      return;
+    }
     const raw = normalizeIntegerRaw(e.target.value);
     if (raw !== e.target.value) {
       e.target.value = raw;
@@ -141,11 +147,16 @@ export function NumInput({
   };
 
   const handleWheel = (e: WheelEvent<HTMLInputElement>) => {
+    if (!hoverWheel && e.target !== document.activeElement) return;
     e.preventDefault();
-    e.stopPropagation();
     const direction = e.deltaY < 0 ? 1 : -1;
     const current = Number.isFinite(value) ? value : (min ?? 0);
-    onChange(clampValue(current + direction));
+    let step = 1;
+    if (e.shiftKey && e.ctrlKey) step = 10;
+    else if (e.shiftKey) step = 5;
+    wheelRef.current = true;
+    onChange(clampValue(current + direction * step));
+    setTimeout(() => { wheelRef.current = false; }, 0);
   };
 
   return (
@@ -158,7 +169,6 @@ export function NumInput({
       max={max}
       onChange={handleChange}
       onBlur={handleBlur}
-      onWheelCapture={handleWheel}
       onWheel={handleWheel}
       style={{
         background: "transparent",
@@ -416,10 +426,22 @@ export function AdvDropdown({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
+  const handleWheel = (e: WheelEvent) => {
+    if (open) return;
+    e.preventDefault();
+    const currentIndex = options.findIndex((o) => o.value === value);
+    if (currentIndex === -1) return;
+    const direction = e.deltaY < 0 ? -1 : 1;
+    const nextIndex = Math.max(0, Math.min(options.length - 1, currentIndex + direction));
+    if (nextIndex !== currentIndex) {
+      onChange(options[nextIndex].value);
+    }
+  };
+
   const activeLabel = options.find((o) => o.value === value)?.label ?? value;
 
   return (
-    <div className="adv-dropdown" ref={ref}>
+    <div className="adv-dropdown" ref={ref} onWheel={handleWheel}>
       <button type="button" className="adv-dropdown-trigger" onClick={toggle}>
         <span>{activeLabel}</span>
         <svg

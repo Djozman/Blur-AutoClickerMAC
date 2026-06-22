@@ -1,5 +1,5 @@
 import type { Settings } from "../../../store";
-import { useTranslation } from "../../../i18n";
+
 import { getEffectiveClicksPerSecond, isDoubleClickSupported } from "../../../cadence";
 import { InfoIcon, ToggleBtn } from "./shared";
 
@@ -24,7 +24,6 @@ export default function DoubleClickSection({
   update,
   showInfo,
 }: Props) {
-  const { t } = useTranslation();
 
   const currentClicksPerSecond = getEffectiveClicksPerSecond({
     clickInterval: settings.clickInterval,
@@ -38,9 +37,7 @@ export default function DoubleClickSection({
 
   const doubleClickDisabled = !isDoubleClickSupported(settings);
   const doubleClickDisabledReason = doubleClickDisabled
-    ? t("advanced.doubleClickUnavailable", {
-        cps: formatClicksPerSecond(currentClicksPerSecond),
-      })
+    ? `Double Click is unavailable at ${formatClicksPerSecond(currentClicksPerSecond)} clicks/sec. Lower the effective click rate below 50 clicks/sec to turn it on.`
     : undefined;
 
   return (
@@ -54,9 +51,9 @@ export default function DoubleClickSection({
           }}
         >
           {showInfo ? (
-            <InfoIcon text={t("advanced.doubleClickDescription")} />
+            <InfoIcon text="Clicks twice per cycle using your Windows double-click speed, then keeps the second press held for the configured click duration. Only available under 50cps" />
           ) : null}
-          <span className="adv-card-title">{t("advanced.doubleClick")}</span>
+          <span className="adv-card-title">Double Click</span>
         </div>
         <div className="adv-row" style={{ gap: 8 }}>
           <ToggleBtn

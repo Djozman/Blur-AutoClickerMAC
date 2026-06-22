@@ -7,9 +7,9 @@ mod engine;
 mod hotkeys;
 mod overlay;
 mod sequence_picker;
-mod single_instance;
 mod ui_commands;
 mod updates;
+mod window_lifecycle;
 
 use crate::app_state::ClickerState;
 use crate::app_state::ClickerStatusPayload;
@@ -26,16 +26,14 @@ const STATUS_EVENT: &str = "clicker-status";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let _single_instance_guard = match single_instance::acquire() {
-        Some(guard) => guard,
-        None => return,
-    };
-
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_persisted_scope::init())
         .manage(ClickerState {
             running: Arc::new(AtomicBool::new(false)),
             run_generation: AtomicU64::new(0),
@@ -51,6 +49,8 @@ pub fn run() {
             sequence_pick_active: AtomicBool::new(false),
             custom_stop_zone_pick_active: AtomicBool::new(false),
             settings_initialized: AtomicBool::new(false),
+            paused: Arc::new(AtomicBool::new(false)),
+            warning: Mutex::new(None),
         })
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -71,6 +71,7 @@ pub fn run() {
                 .tooltip("BlurAutoClicker")
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => {
+                        crate::window_lifecycle::on_show(app);
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
@@ -93,6 +94,7 @@ pub fn run() {
                     } = event
                     {
                         let app = tray.app_handle();
+                        crate::window_lifecycle::on_show(app);
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
@@ -133,6 +135,8 @@ pub fn run() {
                     overlay::check_auto_hide(&auto_hide_handle);
                 }
             });
+
+            window_lifecycle::start_periodic_trimming(30);
 
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -196,9 +200,11 @@ pub fn run() {
             ui_commands::reset_stats,
             updates::update_checker::check_for_updates,
             overlay::hide_overlay,
+            ui_commands::hide_main_window,
             ui_commands::quit_app,
             ui_commands::get_autostart_enabled,
             ui_commands::set_autostart_enabled,
+            ui_commands::list_processes,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

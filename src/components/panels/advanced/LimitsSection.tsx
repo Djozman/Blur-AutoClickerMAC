@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Settings, TimeLimitUnit } from "../../../store";
-import { useTranslation, type TranslationKey } from "../../../i18n";
+
 import {
   SETTINGS_LIMITS,
   TIME_LIMIT_UNIT_OPTIONS,
@@ -14,42 +14,37 @@ interface Props {
 }
 
 export default function LimitsSection({ settings, update, showInfo }: Props) {
-  const { t } = useTranslation();
-  const [mode, setMode] = useState<"clicks" | "time">(() =>
-    settings.timeLimitEnabled && !settings.clickLimitEnabled
-      ? "time"
-      : "clicks",
-  );
+  const [mode, setMode] = useState<"clicks" | "time">("clicks");
+  const effectiveMode: "clicks" | "time" =
+    settings.timeLimitEnabled !== settings.clickLimitEnabled
+      ? settings.timeLimitEnabled
+        ? "time"
+        : "clicks"
+      : mode;
 
-  const selectedMode =
-    settings.timeLimitEnabled && !settings.clickLimitEnabled
-      ? "time"
-      : settings.clickLimitEnabled && !settings.timeLimitEnabled
-        ? "clicks"
-        : mode;
+  const updateRef = useRef(update);
+
+  useLayoutEffect(() => {
+    updateRef.current = update;
+  });
 
   useEffect(() => {
     if (settings.clickLimitEnabled && settings.timeLimitEnabled) {
-      if (selectedMode === "clicks") {
-        update({ timeLimitEnabled: false });
+      if (effectiveMode === "clicks") {
+        updateRef.current({ timeLimitEnabled: false });
       } else {
-        update({ clickLimitEnabled: false });
+        updateRef.current({ clickLimitEnabled: false });
       }
     }
-  }, [
-    settings.clickLimitEnabled,
-    settings.timeLimitEnabled,
-    selectedMode,
-    update,
-  ]);
+  }, [settings.clickLimitEnabled, settings.timeLimitEnabled, effectiveMode]);
 
-  const isClicksMode = selectedMode === "clicks";
+  const isClicksMode = effectiveMode === "clicks";
   const activeEnabled = isClicksMode
     ? settings.clickLimitEnabled
     : settings.timeLimitEnabled;
   const activeUnavailableReason = isClicksMode
-    ? t("advanced.clickLimitUnavailable")
-    : t("advanced.timeLimitUnavailable");
+    ? "Enable Click Limit to stop automatically after a set number of clicks."
+    : "Enable Time Limit to stop automatically after a set amount of time.";
 
   const handleModeChange = (nextMode: "clicks" | "time") => {
     const wasEnabled = activeEnabled;
@@ -95,12 +90,12 @@ export default function LimitsSection({ settings, update, showInfo }: Props) {
             <InfoIcon
               text={
                 isClicksMode
-                  ? t("advanced.clickLimitDescription")
-                  : t("advanced.timeLimitDescription")
+                  ? "Stops automatically after the selected number of clicks."
+                  : "Stops automatically after the selected duration."
               }
             />
           ) : null}
-          <span className="adv-card-title">{t("advanced.limits")}</span>
+          <span className="adv-card-title">Limits</span>
         </div>
         <ToggleBtn value={activeEnabled} onChange={handleToggleChange} />
       </div>
@@ -126,7 +121,7 @@ export default function LimitsSection({ settings, update, showInfo }: Props) {
                   min={SETTINGS_LIMITS.clickLimit.min}
                   style={{ width: "89px", textAlign: "right" }}
                 />
-                <span className="adv-unit">{t("advanced.clicksUnit")}</span>
+                <span className="adv-unit">clicks</span>
               </div>
             ) : (
               <>
@@ -150,9 +145,7 @@ export default function LimitsSection({ settings, update, showInfo }: Props) {
                           })
                         }
                       >
-                        {t(
-                          `options.timeUnitShort.${timeLimitUnitOption}` as TranslationKey,
-                        )}
+                        {timeLimitUnitOption}
                       </button>
                     ),
                   )}
@@ -165,14 +158,14 @@ export default function LimitsSection({ settings, update, showInfo }: Props) {
                 className={`adv-seg-btn ${isClicksMode ? "active" : ""}`}
                 onClick={() => handleModeChange("clicks")}
               >
-                {t("advanced.clickLimit")}
+                Click
               </button>
               <button
                 type="button"
                 className={`adv-seg-btn ${!isClicksMode ? "active" : ""}`}
                 onClick={() => handleModeChange("time")}
               >
-                {t("advanced.timeLimit")}
+                Time
               </button>
             </div>
           </div>

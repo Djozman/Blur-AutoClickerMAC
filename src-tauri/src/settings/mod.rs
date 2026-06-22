@@ -21,6 +21,12 @@ fn default_keyboard_key_case() -> String {
     "lower".to_string()
 }
 
+fn default_true() -> bool {
+    true
+}
+
+use crate::engine::ProcessListEntry;
+
 #[derive(Clone, serde::Deserialize, serde::Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ClickerSettings {
@@ -71,7 +77,13 @@ pub struct ClickerSettings {
     pub sequence_enabled: bool,
     pub sequence_points: Vec<SequencePoint>,
 
+    pub process_list_enabled: bool,
+    pub process_list_mode: String,
+    pub process_list_entries: Vec<ProcessListEntry>,
+
     // settings-only fields
+    #[serde(default = "default_true")]
+    pub task_switcher_stop_enabled: bool,
     pub hotkey: String,
     pub rate_input_mode: String,
     pub duration_hours: u32,
@@ -142,7 +154,12 @@ impl Default for ClickerSettings {
             sequence_enabled: false,
             sequence_points: Vec::new(),
 
+            process_list_enabled: false,
+            process_list_mode: "whitelist".to_string(),
+            process_list_entries: Vec::new(),
+
             // settings-only defaults
+            task_switcher_stop_enabled: true,
             hotkey: "ctrl+y".to_string(),
             rate_input_mode: "rate".to_string(),
             duration_hours: 0,

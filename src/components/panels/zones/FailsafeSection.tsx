@@ -1,5 +1,5 @@
 import type { Settings } from "../../../store";
-import { useTranslation } from "../../../i18n";
+
 import { SETTINGS_LIMITS } from "../../../settingsSchema";
 import {
   Disableable,
@@ -30,7 +30,7 @@ const EDGE_KEYS = {
 } as const;
 
 export default function FailsafeSection({ settings, update, showInfo }: Props) {
-  const { t } = useTranslation();
+
 
   return (
     <>
@@ -45,9 +45,9 @@ export default function FailsafeSection({ settings, update, showInfo }: Props) {
             }}
           >
             {showInfo ? (
-              <InfoIcon text={t("advanced.cornerStopDescription")} />
+              <InfoIcon text="Stops the clicker when the cursor enters a screen corner. Keep it as a failsafe." />
             ) : null}
-            <span className="adv-card-title">{t("advanced.cornerStop")}</span>
+            <span className="adv-card-title">Corner Stop</span>
           </div>
           <ToggleBtn
             value={settings.cornerStopEnabled}
@@ -57,7 +57,7 @@ export default function FailsafeSection({ settings, update, showInfo }: Props) {
         <CardDivider />
         <Disableable
           enabled={settings.cornerStopEnabled}
-          disabledReason={t("advanced.cornerStopUnavailable")}
+          disabledReason="Enable Corner Stop to edit the corner failsafe hitboxes."
         >
           <div className="adv-row" style={{ gap: 8 }}>
             <div className="adv-corner-grid">
@@ -93,9 +93,9 @@ export default function FailsafeSection({ settings, update, showInfo }: Props) {
             }}
           >
             {showInfo ? (
-              <InfoIcon text={t("advanced.edgeStopDescription")} />
+              <InfoIcon text="Stops the clicker when the cursor reaches a screen edge. Keep it as a failsafe." />
             ) : null}
-            <span className="adv-card-title">{t("advanced.edgeStop")}</span>
+            <span className="adv-card-title">Edge Stop</span>
           </div>
           <ToggleBtn
             value={settings.edgeStopEnabled}
@@ -105,7 +105,7 @@ export default function FailsafeSection({ settings, update, showInfo }: Props) {
         <CardDivider />
         <Disableable
           enabled={settings.edgeStopEnabled}
-          disabledReason={t("advanced.edgeStopUnavailable")}
+          disabledReason="Enable Edge Stop to edit the edge failsafe hitboxes."
         >
           <div className="adv-row" style={{ gap: 8 }}>
             <div className="adv-corner-grid">

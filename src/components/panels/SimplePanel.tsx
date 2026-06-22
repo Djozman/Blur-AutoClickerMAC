@@ -1,15 +1,16 @@
-import type { CSSProperties, ChangeEvent, ReactNode, WheelEvent } from "react";
+import { type CSSProperties, type ChangeEvent, type ReactNode, type WheelEvent } from "react";
 import type { MouseButton, Settings } from "../../store";
-import { useTranslation, type TranslationKey } from "../../i18n";
+
 import CadenceInput from "../CadenceInput";
 import HotkeyCaptureInput from "../HotkeyCaptureInput";
-import { isAlphabeticKeyboardKey } from "../../keyboardKeyCase";
-import KeyCaptureInput from "../KeyCaptureInput";
 import {
   MODE_OPTIONS,
   MOUSE_BUTTON_OPTIONS,
   SETTINGS_LIMITS,
 } from "../../settingsSchema";
+import { isAlphabeticKeyboardKey } from "../../keyboardKeyCase";
+import { conflictsWithAutoPressKey } from "../../hotkeys";
+import KeyCaptureInput from "../KeyCaptureInput";
 import { AdvDropdown } from "./advanced/shared";
 import "./SimplePanel.css";
 
@@ -46,7 +47,10 @@ function handleWheelStep(
   event.stopPropagation();
   event.currentTarget.blur();
   const delta = event.deltaY < 0 ? 1 : -1;
-  apply(clamp(current + delta, min, max));
+  let step = 1;
+  if (event.shiftKey && event.ctrlKey) step = 10;
+  else if (event.shiftKey) step = 5;
+  apply(clamp(current + delta * step, min, max));
 }
 
 function ControlBox({
@@ -122,17 +126,15 @@ function NumberField({
   );
 }
 
-export default function SimplePanel({ settings, update }: SimplePanelProps) {
-  const { t } = useTranslation();
-
+function SimplePanel({ settings, update }: SimplePanelProps) {
   const clickModeOptions = MODE_OPTIONS.map((mode) => ({
     value: mode,
-    label: t(`options.mode.${mode}` as TranslationKey),
+    label: mode === "Toggle" ? "Toggle" : "Hold",
   }));
 
   const mouseButtonOptions = MOUSE_BUTTON_OPTIONS.map((button) => ({
     value: button,
-    label: t(`options.mouseButton.${button}` as TranslationKey),
+    label: button,
   }));
 
   const inputTypeOptions = [
@@ -151,6 +153,12 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
     });
   };
 
+  const hasConflict =
+    settings.inputType === "keyboard" &&
+    conflictsWithAutoPressKey(settings.hotkey, settings.keyboardKey, keyboardKeyCaseIsUpper);
+  const hotkeyConflicts = hasConflict ? ["Auto-press key"] : [];
+  const autoPressKeyConflicts = hasConflict ? ["Hotkey"] : [];
+
   return (
     <div className="vcontainer simple-panel">
       <div className="hcontainer simple-row simple-row--top">
@@ -165,6 +173,7 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
               style={{ width: "90px" }}
               value={settings.hotkey}
               onChange={(hotkey) => update({ hotkey })}
+              conflicts={hotkeyConflicts}
             />
           </div>
           <svg
@@ -228,7 +237,8 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
                 onMouseButtonCapture={(mouseButton) =>
                   update({ inputType: "mouse", mouseButton })
                 }
-                style={{ width: "90px" }}
+                style={{width: "90px"}}
+                conflicts={autoPressKeyConflicts}
               />
               <button
                 type="button"
@@ -237,6 +247,12 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
                     ? "simple-key-case-toggle--upper"
                     : "simple-key-case-toggle--lower"
                 }`}
+                aria-label={
+                  keyboardKeyCaseIsUpper
+                    ? "Send letters as uppercase"
+                    : "Send letters as lowercase"
+                }
+                aria-pressed={keyboardKeyCaseIsUpper}
                 title="Toggle keyboard key case"
                 disabled={!canToggleKeyboardKeyCase}
                 onClick={toggleKeyboardKeyCase}
@@ -249,7 +265,7 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
 
         <ControlBox className="simple-row-item">
           <NumberField
-            label={t("simple.hold")}
+            label="Click Duration"
             value={settings.dutyCycle}
             min={SETTINGS_LIMITS.dutyCycle.min!}
             max={SETTINGS_LIMITS.dutyCycle.max!}
@@ -260,7 +276,7 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
 
         <ControlBox className="simple-row-item">
           <NumberField
-            label={t("simple.randomization")}
+            label="Speed Variation"
             value={settings.speedVariation}
             min={SETTINGS_LIMITS.speedVariation.min!}
             max={SETTINGS_LIMITS.speedVariation.max!}
@@ -272,3 +288,5 @@ export default function SimplePanel({ settings, update }: SimplePanelProps) {
     </div>
   );
 }
+
+export default SimplePanel;

@@ -135,6 +135,60 @@ export type HotkeyDisplayLabels = {
   keys: Partial<Record<string, string>>;
 };
 
+export const defaultHotkeyLabels: HotkeyDisplayLabels = {
+  empty: "No hotkey set",
+  modifiers: {
+    ctrl: "Ctrl",
+    alt: "Alt",
+    shift: "Shift",
+    super: "Super",
+  },
+  keys: {
+    up: "Up",
+    down: "Down",
+    left: "Left",
+    right: "Right",
+    pageup: "Page Up",
+    pagedown: "Page Down",
+    backspace: "Backspace",
+    delete: "Delete",
+    insert: "Insert",
+    home: "Home",
+    end: "End",
+    enter: "Enter",
+    tab: "Tab",
+    space: "Space",
+    escape: "Esc",
+    esc: "Esc",
+    capslock: "Caps Lock",
+    numlock: "Num Lock",
+    scrolllock: "Scroll Lock",
+    printscreen: "Print Screen",
+    pause: "Pause",
+    menu: "Menu",
+    mouseleft: "Mouse Left",
+    mouseright: "Mouse Right",
+    mousemiddle: "Scroll Button",
+    mouse4: "Mouse Back",
+    mouse5: "Mouse Forward",
+    numpad0: "Num 0",
+    numpad1: "Num 1",
+    numpad2: "Num 2",
+    numpad3: "Num 3",
+    numpad4: "Num 4",
+    numpad5: "Num 5",
+    numpad6: "Num 6",
+    numpad7: "Num 7",
+    numpad8: "Num 8",
+    numpad9: "Num 9",
+    numpadadd: "Num +",
+    numpadsubtract: "Num -",
+    numpadmultiply: "Num *",
+    numpaddivide: "Num /",
+    numpaddecimal: "Num .",
+  },
+};
+
 let layoutMapPromise: Promise<LayoutMapLike | null> | null = null;
 
 function normalizeModifierToken(token: string): string | null {
@@ -534,4 +588,41 @@ function canonicalizeHotkeyString(
   if (superKey) parts.push("super");
   if (mainKey) parts.push(mainKey);
   return parts.join("+");
+}
+
+export function hotkeyMainKey(hotkey: string): string | null {
+  if (!hotkey) return null;
+  const parts = hotkey.split("+").map((p) => p.trim().toLowerCase());
+  return parts.length > 0 ? parts[parts.length - 1] ?? null : null;
+}
+
+export function hotkeyModifiers(hotkey: string): string[] {
+  const parts = hotkey.split("+").map((p) => p.trim().toLowerCase());
+  return parts.length > 1 ? parts.slice(0, -1) : [];
+}
+
+export function conflictsWithAutoPressKey(
+  hotkey: string,
+  keyboardKey: string,
+  keyboardKeyCaseIsUpper: boolean,
+): boolean {
+  if (!hotkey || !keyboardKey) return false;
+  const mainKey = hotkeyMainKey(hotkey);
+  const modifiers = hotkeyModifiers(hotkey);
+  const kbKey = keyboardKey.toLowerCase();
+  if (!mainKey || mainKey !== kbKey) return false;
+  if (modifiers.length === 0) return true;
+  if (keyboardKeyCaseIsUpper && modifiers.length === 1 && modifiers[0] === "shift") return true;
+  return false;
+}
+
+export function getStateClass(
+  listening: boolean,
+  hasConflict: boolean,
+  hasValue: boolean,
+): string {
+  if (listening) return "hk-listening";
+  if (hasConflict) return "hk-conflict";
+  if (hasValue) return "hk-idle-set";
+  return "hk-idle-empty";
 }

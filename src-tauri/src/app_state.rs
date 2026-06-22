@@ -19,15 +19,19 @@ pub struct ClickerState {
     pub custom_stop_zone_pick_active: AtomicBool,
     pub registered_hotkey: Mutex<Option<HotkeyBinding>>,
     pub settings_initialized: AtomicBool,
+    pub paused: Arc<AtomicBool>,
+    pub warning: Mutex<Option<String>>,
 }
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClickerStatusPayload {
     pub running: bool,
+    pub paused: bool,
     pub click_count: i64,
     pub last_error: Option<String>,
     pub stop_reason: Option<String>,
+    pub warning: Option<String>,
     pub active_sequence_index: Option<usize>,
     pub active_sequence_tick: u64,
 }

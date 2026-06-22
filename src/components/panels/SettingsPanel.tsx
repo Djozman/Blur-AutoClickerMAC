@@ -5,17 +5,14 @@ import type {
   PresetId,
   Settings,
 } from "../../store";
-import {
-  isLanguage,
-  LANGUAGE_OPTIONS,
-  useTranslation,
-  type Language,
-} from "../../i18n";
+
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import ConfirmDialog from "../ConfirmDialog";
-import { AdvDropdown } from "./advanced/shared";
+import { changelogEntries } from "../../changelog";
+import ChangelogContent from "../ChangelogContent";
 import {
   DEFAULT_MAX_CLICK_SPEED,
   DEFAULT_ACCENT_COLOR,
@@ -30,10 +27,12 @@ type PendingAction =
   | "extended-click-speed-limit"
   | null;
 
-const LANGUAGE_DROPDOWN_OPTIONS = LANGUAGE_OPTIONS.map((option) => ({
-  value: option.code,
-  label: option.label,
-}));
+const IMAGE_FILTERS = [
+  {
+    name: "Images",
+    extensions: ["png", "jpg", "jpeg", "gif", "bmp", "webp"],
+  },
+];
 
 interface CumulativeStats {
   totalClicks: number;
@@ -54,9 +53,11 @@ interface Props {
   onDeletePreset: (presetId: PresetId) => boolean;
   onToggleAlwaysOnTop: () => Promise<void>;
   onReset: () => Promise<void>;
+  updateCheckStatus: "idle" | "checking" | "available" | "unavailable" | "error";
+  onCheckForUpdate: () => void;
 }
 
-function formatTime(totalSeconds: number, language: Language): string {
+function formatTime(totalSeconds: number, language: string): string {
   if (totalSeconds < 0.01) return "0s";
   if (totalSeconds < 60) {
     return `${Math.floor(totalSeconds).toLocaleString(language)}s`;
@@ -75,13 +76,13 @@ function formatTime(totalSeconds: number, language: Language): string {
     : `${h.toLocaleString(language)}h`;
 }
 
-function formatNumber(n: number, language: Language): string {
+function formatNumber(n: number, language: string): string {
   return Math.floor(n).toLocaleString(language);
 }
 
 function formatCpu(
   cpu: number,
-  language: Language,
+  language: string,
   notAvailable: string,
 ): string {
   if (cpu < 0) return notAvailable;
@@ -158,8 +159,6 @@ function PresetRow({
   onCancelDelete: () => void;
   onConfirmDelete: () => void;
 }) {
-  const { t } = useTranslation();
-
   return (
     <div
       className={`preset-card ${isActive ? "preset-card--active" : ""}`}
@@ -191,7 +190,7 @@ function PresetRow({
           <div className="preset-badges">
             {isActive && (
               <span className="preset-badge preset-badge--active">
-                {t("settings.presetActive")}
+                Active
               </span>
             )}
             <span className="preset-badge">
@@ -207,10 +206,10 @@ function PresetRow({
                 onClick={onCommitRename}
                 disabled={running}
               >
-                {t("settings.presetSave")}
+                Save
               </button>
               <button className="settings-btn-quiet" onClick={onCancelRename}>
-                {t("settings.presetCancel")}
+                Cancel
               </button>
             </>
           ) : isConfirmingDelete ? (
@@ -220,10 +219,10 @@ function PresetRow({
                 onClick={onConfirmDelete}
                 disabled={running}
               >
-                {t("settings.presetConfirmDelete")}
+                Confirm?
               </button>
               <button className="settings-btn-quiet" onClick={onCancelDelete}>
-                {t("settings.presetCancel")}
+                Cancel
               </button>
             </>
           ) : (
@@ -233,28 +232,28 @@ function PresetRow({
                 onClick={onApply}
                 disabled={running}
               >
-                {t("settings.presetApply")}
+                Apply
               </button>
               <button
                 className="settings-btn-secondary"
                 onClick={onUpdatePreset}
                 disabled={running}
               >
-                {t("settings.presetUpdate")}
+                Update
               </button>
               <button
                 className="settings-btn-secondary"
                 onClick={onStartRename}
                 disabled={running}
               >
-                {t("settings.presetRename")}
+                Rename
               </button>
               <button
                 className="settings-btn-danger settings-btn-danger--compact"
                 onClick={onRequestDelete}
                 disabled={running}
               >
-                {t("settings.presetDelete")}
+                Delete
               </button>
             </>
           )}
@@ -276,6 +275,8 @@ export default function SettingsPanel({
   onDeletePreset,
   onToggleAlwaysOnTop,
   onReset,
+  updateCheckStatus,
+  onCheckForUpdate,
 }: Props) {
   const [resetting, setResetting] = useState(false);
   const [resettingStats, setResettingStats] = useState(false);
@@ -292,15 +293,15 @@ export default function SettingsPanel({
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<PresetId | null>(
     null,
   );
+  const [showChangelog, setShowChangelog] = useState(false);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const presetsListRef = useRef<HTMLDivElement>(null);
-  const { language, t } = useTranslation();
-
+  const language = "en";
   useEffect(() => {
     invoke<CumulativeStats>("get_stats")
       .then(setStats)
-      .catch(() => {});
+      .catch(() => { });
     invoke<boolean>("get_autostart_enabled")
       .then(setAutostartEnabled)
       .catch(() => setAutostartEnabled(false));
@@ -384,6 +385,20 @@ export default function SettingsPanel({
     }
   };
 
+  const handleBrowseBackgroundImage = async () => {
+    try {
+      const selected = await open({
+        multiple: false,
+        filters: IMAGE_FILTERS,
+      });
+      if (selected) {
+        update({ backgroundImage: selected });
+      }
+    } catch (err) {
+      console.error("Failed to pick image:", err);
+    }
+  };
+
   const handleAlwaysOnTopChange = (nextValue: boolean) => {
     if (settings.alwaysOnTop === nextValue) {
       return;
@@ -397,13 +412,13 @@ export default function SettingsPanel({
   const activeEditingPresetId = running ? null : editingPresetId;
   const activeConfirmingDeleteId = running ? null : confirmingDeleteId;
   const onOffOptions = [
-    { value: true, label: t("common.on") },
-    { value: false, label: t("common.off") },
+    { value: false, label: "Off" },
+    { value: true, label: "On" },
   ];
 
   const advancedLayoutOptions = [
-    { value: "wide" as const, label: t("settings.advancedLayoutWide") },
-    { value: "tall" as const, label: t("settings.advancedLayoutTall") },
+    { value: "wide" as const, label: "Wide" },
+    { value: "tall" as const, label: "Tall" },
   ];
   const maxClickSpeed = getMaxClickSpeed(settings.extendedClickSpeedLimit);
 
@@ -456,15 +471,23 @@ export default function SettingsPanel({
     handlePresetsScroll();
   }, [settings.presets.length]);
 
+  const updateButtonLabel = {
+    idle: "Check for Update",
+    checking: "Checking...",
+    available: "Update found!",
+    unavailable: "No update found",
+    error: "Check failed",
+  }[updateCheckStatus];
+
   return (
     <div className="settings-wrapper">
       <div className="settings-panel" ref={panelRef} onScroll={handleScroll}>
         <SettingsCard
-          title={t("settings.sectionAbout")}
-          description={t("settings.sectionAboutDescription")}
+          title="About"
+          description="Version and project links."
         >
           <div className="social-links">
-            <span className="settings-label">{t("settings.supportMe")}</span>
+            <span className="settings-label">Support Me</span>
             <div className="social-icons">
               <a
                 className="social-icon social-icon--kofi"
@@ -541,20 +564,53 @@ export default function SettingsPanel({
           </div>
 
           <div className="settings-row">
-            <span className="settings-label">{t("settings.version")}</span>
-            <span className="settings-value">v{appInfo.version}</span>
+            <div className="settings-label-group settings-label-group--inline">
+              <span className="settings-label">Version</span>
+              <span className="settings-value">v{appInfo.version}</span>
+            </div>
+            <div className="settings-row-actions">
+              <button
+                className="settings-btn-secondary changelog-toggle-btn"
+                onClick={() => setShowChangelog((v) => !v)}
+              >
+                <svg
+                  className={`changelog-arrow${showChangelog ? ' open' : ''}`}
+                  width="10"
+                  height="10"
+                  viewBox="0 0 10 10"
+                  fill="none"
+                >
+                  <path
+                    d="M3 1L7 5L3 9"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                {showChangelog ? "Hide Changes" : "Show Changes"}
+              </button>
+              <button
+                className="settings-btn-secondary check-update-btn"
+                onClick={onCheckForUpdate}
+                disabled={updateCheckStatus !== "idle"}
+              >
+                {updateButtonLabel}
+              </button>
+            </div>
           </div>
+          {showChangelog && <ChangelogContent entries={changelogEntries} />}
         </SettingsCard>
 
         <SettingsCard
-          title={t("settings.sectionUsage")}
-          description={t("settings.sectionUsageDescription")}
+          title="Usage"
+          description="Clicking statistics for all sessions."
         >
           <div className="settings-row">
             <div className="settings-label-group">
-              <span className="settings-label">{t("settings.usageData")}</span>
+              <span className="settings-label">Usage Data</span>
               <span className="settings-sublabel">
-                {t("settings.usageDataDescription")}
+                Statistics are stored locally and never sent anywhere.
               </span>
             </div>
           </div>
@@ -562,7 +618,7 @@ export default function SettingsPanel({
             <div className="stats-grid">
               <div className="stats-cell">
                 <span className="stats-cell-label">
-                  {t("settings.totalClicks")}
+                  Total Clicks
                 </span>
                 <span className="stats-cell-value">
                   {formatNumber(stats.totalClicks, language)}
@@ -570,7 +626,7 @@ export default function SettingsPanel({
               </div>
               <div className="stats-cell">
                 <span className="stats-cell-label">
-                  {t("settings.totalTimeClicking")}
+                  Total Time Clicking
                 </span>
                 <span className="stats-cell-value">
                   {formatTime(stats.totalTimeSecs, language)}
@@ -578,15 +634,15 @@ export default function SettingsPanel({
               </div>
               <div className="stats-cell">
                 <span className="stats-cell-label">
-                  {t("settings.averageCpu")}
+                  Average CPU
                 </span>
                 <span className="stats-cell-value">
-                  {formatCpu(stats.avgCpu, language, t("common.notAvailable"))}
+                  {formatCpu(stats.avgCpu, language, "N/A")}
                 </span>
               </div>
               <div className="stats-cell">
                 <span className="stats-cell-label">
-                  {t("settings.sessions")}
+                  Sessions
                 </span>
                 <span className="stats-cell-value">
                   {formatNumber(stats.totalSessions, language)}
@@ -594,16 +650,16 @@ export default function SettingsPanel({
               </div>
             </div>
           ) : (
-            <div className="stats-empty">{t("settings.noRuns")}</div>
+            <div className="stats-empty">No session data yet.</div>
           )}
           {hasStats && (
             <div className="settings-row">
               <div className="settings-label-group">
                 <span className="settings-label">
-                  {t("settings.clearStats")}
+                  Clear Stats
                 </span>
                 <span className="settings-sublabel">
-                  {t("settings.clearStatsDescription")}
+                  Clear all usage data.
                 </span>
               </div>
               <button
@@ -611,27 +667,27 @@ export default function SettingsPanel({
                 className="settings-btn-danger settings-btn-danger--compact"
                 onClick={() => setPendingAction("clear-stats")}
               >
-                {t("settings.clearStats")}
+                Clear
               </button>
             </div>
           )}
         </SettingsCard>
 
         <SettingsCard
-          title={t("settings.sectionPresets")}
-          description={t("settings.sectionPresetsDescription")}
+          title="Presets"
+          description="Save and load presets."
         >
           <div className="settings-row settings-row--stacked">
             <div className="settings-label-group">
-              <span className="settings-label">{t("settings.presets")}</span>
+              <span className="settings-label">Presets</span>
               <span className="settings-sublabel">
-                {t("settings.presetsDescription")}
+                Save and restore to quickly switch configurations.
               </span>
             </div>
             <div className="preset-compose">
               <input
                 className="preset-name-input"
-                placeholder={t("settings.presetNamePlaceholder")}
+                placeholder="Preset name"
                 value={newPresetName}
                 maxLength={PRESET_NAME_MAX_LENGTH}
                 onChange={(event) => setNewPresetName(event.target.value)}
@@ -662,17 +718,17 @@ export default function SettingsPanel({
                   newPresetName.trim().length === 0
                 }
               >
-                {t("settings.saveNewPreset")}
+                Save
               </button>
             </div>
             {presetLimitReached && (
               <span className="settings-note">
-                {t("settings.presetLimitReached")}
+                Max 6 presets allowed
               </span>
             )}
             {running && (
               <span className="settings-note">
-                {t("settings.presetActionsDisabled")}
+                Disabled while clicking
               </span>
             )}
             {settings.presets.length > 0 ? (
@@ -720,22 +776,22 @@ export default function SettingsPanel({
                 />
               </div>
             ) : (
-              <div className="stats-empty">{t("settings.noPresets")}</div>
+              <div className="stats-empty">No saved presets.</div>
             )}
           </div>
         </SettingsCard>
 
         <SettingsCard
-          title={t("settings.sectionBehavior")}
-          description={t("settings.sectionBehaviorDescription")}
+          title="Behavior"
+          description="Change how the auto clicker runs."
         >
           <div className="settings-row">
             <div className="settings-label-group">
               <span className="settings-label">
-                {t("settings.alwaysOnTop")}
+                Always on Top
               </span>
               <span className="settings-sublabel">
-                {t("settings.alwaysOnTopDescription")}
+                Keep the window above others.
               </span>
             </div>
             <div className="settings-seg-group">
@@ -754,10 +810,10 @@ export default function SettingsPanel({
           <div className="settings-row">
             <div className="settings-label-group">
               <span className="settings-label">
-                {t("settings.stopHitboxOverlay")}
+                Stop Hitbox Overlay
               </span>
               <span className="settings-sublabel">
-                {t("settings.stopHitboxOverlayDescription")}
+                Show the stop zone boundaries.
               </span>
             </div>
             <div className="settings-seg-group">
@@ -776,10 +832,10 @@ export default function SettingsPanel({
           <div className="settings-row">
             <div className="settings-label-group">
               <span className="settings-label">
-                {t("settings.stopReasonAlert")}
+                Stop Reason Alert
               </span>
               <span className="settings-sublabel">
-                {t("settings.stopReasonAlertDescription")}
+                Show a notification when the auto clicker stops.
               </span>
             </div>
             <div className="settings-seg-group">
@@ -798,10 +854,10 @@ export default function SettingsPanel({
           <div className="settings-row">
             <div className="settings-label-group">
               <span className="settings-label">
-                {t("settings.strictHotkeyModifiers")}
+                Strict Hotkey Modifiers
               </span>
               <span className="settings-sublabel">
-                {t("settings.strictHotkeyModifiersDescription")}
+                Require exact modifier keys for hotkeys.
               </span>
             </div>
             <div className="settings-seg-group">
@@ -822,12 +878,34 @@ export default function SettingsPanel({
           <div className="settings-row">
             <div className="settings-label-group">
               <span className="settings-label">
-                {t("settings.extendedClickSpeedLimit")}
+                Stop on Task Switcher
               </span>
               <span className="settings-sublabel">
-                {t("settings.extendedClickSpeedLimitDescription", {
-                  limit: maxClickSpeed,
-                })}
+                Stop clicking when switching to another window.
+              </span>
+            </div>
+            <div className="settings-seg-group">
+              {onOffOptions.map((option) => (
+                <button
+                  key={String(option.value)}
+                  className={`settings-seg-btn ${settings.taskSwitcherStopEnabled === option.value ? "active" : ""}`}
+                  onClick={() =>
+                    update({ taskSwitcherStopEnabled: option.value })
+                  }
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="settings-row">
+            <div className="settings-label-group">
+              <span className="settings-label">
+                Extended Click Speed Limit
+              </span>
+              <span className="settings-sublabel">
+                Allow click speeds up to {maxClickSpeed} CPS (may affect performance).
               </span>
             </div>
             <div className="settings-seg-group">
@@ -847,16 +925,16 @@ export default function SettingsPanel({
         </SettingsCard>
 
         <SettingsCard
-          title={t("settings.sectionStartup")}
-          description={t("settings.sectionStartupDescription")}
+          title="Startup"
+          description="Behavior when the app opens."
         >
           <div className="settings-row">
             <div className="settings-label-group">
               <span className="settings-label">
-                {t("settings.minimizeToTray")}
+                Minimize to Tray
               </span>
               <span className="settings-sublabel">
-                {t("settings.minimizeToTrayDescription")}
+                Minimize to the system tray instead of the taskbar.
               </span>
             </div>
             <div className="settings-seg-group">
@@ -875,10 +953,10 @@ export default function SettingsPanel({
           <div className="settings-row">
             <div className="settings-label-group">
               <span className="settings-label">
-                {t("settings.runOnStartup")}
+                Run on Startup
               </span>
               <span className="settings-sublabel">
-                {t("settings.runOnStartupDescription")}
+                Start clicking when the app opens.
               </span>
             </div>
             <div className="settings-seg-group">
@@ -901,32 +979,14 @@ export default function SettingsPanel({
         </SettingsCard>
 
         <SettingsCard
-          title={t("settings.sectionAppearance")}
-          description={t("settings.sectionAppearanceDescription")}
+          title="Appearance"
+          description="Customize how the app looks."
         >
           <div className="settings-row">
             <div className="settings-label-group">
-              <span className="settings-label">{t("settings.language")}</span>
+              <span className="settings-label">Theme</span>
               <span className="settings-sublabel">
-                {t("settings.languageDescription")}
-              </span>
-            </div>
-            <AdvDropdown
-              value={settings.language}
-              options={LANGUAGE_DROPDOWN_OPTIONS}
-              onChange={(next) => {
-                if (isLanguage(next)) {
-                  update({ language: next });
-                }
-              }}
-            />
-          </div>
-
-          <div className="settings-row">
-            <div className="settings-label-group">
-              <span className="settings-label">{t("settings.theme")}</span>
-              <span className="settings-sublabel">
-                {t("settings.themeDescription")}
+                Choose between dark and light mode.
               </span>
             </div>
             <div className="settings-seg-group">
@@ -936,7 +996,7 @@ export default function SettingsPanel({
                   className={`settings-seg-btn ${settings.theme === theme ? "active" : ""}`}
                   onClick={() => update({ theme })}
                 >
-                  {t(theme === "dark" ? "common.dark" : "common.light")}
+                  {theme === "dark" ? "Dark" : "Light"}
                 </button>
               ))}
             </div>
@@ -945,10 +1005,10 @@ export default function SettingsPanel({
           <div className="settings-row">
             <div className="settings-label-group">
               <span className="settings-label">
-                {t("settings.advancedLayout")}
+                Advanced Layout
               </span>
               <span className="settings-sublabel">
-                {t("settings.advancedLayoutDescription")}
+                Panel layout for sequence zones.
               </span>
             </div>
             <div className="settings-seg-group">
@@ -969,10 +1029,10 @@ export default function SettingsPanel({
           <div className="settings-row">
             <div className="settings-label-group">
               <span className="settings-label">
-                {t("settings.accentColor")}
+                Accent Color
               </span>
               <span className="settings-sublabel">
-                {t("settings.accentColorDescription")}
+                The primary accent color.
               </span>
             </div>
             <div className="settings-color-controls">
@@ -993,28 +1053,150 @@ export default function SettingsPanel({
                 onClick={() => update({ accentColor: DEFAULT_ACCENT_COLOR })}
                 disabled={settings.accentColor === DEFAULT_ACCENT_COLOR}
               >
-                {t("common.reset")}
+                Reset
               </button>
+            </div>
+          </div>
+
+          <div className="settings-row">
+            <div className="settings-label-group">
+              <span className="settings-label">
+                Background Image
+              </span>
+              <span className="settings-sublabel">
+                Path or URL to a background image.
+              </span>
+            </div>
+            <div className="settings-bg-image-row">
+              <input
+                className="settings-bg-input"
+                type="text"
+                value={settings.backgroundImage}
+                onChange={(event) =>
+                  update({ backgroundImage: event.target.value })
+                }
+                placeholder="https://example.com/image.png"
+              />
+              <div className="settings-bg-buttons">
+                <button
+                  className="settings-btn-secondary"
+                  onClick={handleBrowseBackgroundImage}
+                >
+                  Browse
+                </button>
+                <button
+                  className="settings-btn-danger settings-btn-danger--compact"
+                  onClick={() => update({ backgroundImage: "" })}
+                  disabled={!settings.backgroundImage}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="settings-row">
+            <div className="settings-label-group">
+              <span className="settings-label">
+                Background Opacity
+              </span>
+              <span className="settings-sublabel">
+                Transparency of the background image.
+              </span>
+            </div>
+            <div className="settings-opacity-controls">
+              <input
+                type="range"
+                className="settings-opacity-slider"
+                min="0"
+                max="100"
+                value={settings.backgroundOpacity}
+                disabled={!settings.backgroundImage}
+                onChange={(event) =>
+                  update({
+                    backgroundOpacity: Number(event.target.value),
+                  })
+                }
+              />
+              <span className="settings-slider-value">
+                {settings.backgroundOpacity}%
+              </span>
+            </div>
+          </div>
+
+          <div className="settings-row">
+            <div className="settings-label-group">
+              <span className="settings-label">
+                Panel Opacity
+              </span>
+              <span className="settings-sublabel">
+                Transparency of the settings panel.
+              </span>
+            </div>
+            <div className="settings-opacity-controls">
+              <input
+                type="range"
+                className="settings-opacity-slider"
+                min="0"
+                max="100"
+                value={settings.panelOpacity}
+                onChange={(event) =>
+                  update({
+                    panelOpacity: Number(event.target.value),
+                  })
+                }
+              />
+              <span className="settings-slider-value">
+                {settings.panelOpacity}%
+              </span>
+            </div>
+          </div>
+
+          <div className="settings-row">
+            <div className="settings-label-group">
+              <span className="settings-label">
+                Panel Blur
+              </span>
+              <span className="settings-sublabel">
+                Blur effect behind the panel.
+              </span>
+            </div>
+            <div className="settings-opacity-controls">
+              <input
+                type="range"
+                className="settings-opacity-slider"
+                min="0"
+                max="20"
+                value={settings.panelBlur}
+                onChange={(event) =>
+                  update({
+                    panelBlur: Number(event.target.value),
+                  })
+                }
+              />
+              <span className="settings-slider-value">
+                {settings.panelBlur}px
+              </span>
             </div>
           </div>
         </SettingsCard>
 
         <SettingsCard
-          title={t("settings.sectionReset")}
-          description={t("settings.sectionResetDescription")}
+          title="Reset"
+          description="Reset all settings or usage data."
         >
           <div className="settings-row">
             <div className="settings-label-group">
-              <span className="settings-label">{t("settings.resetAll")}</span>
+              <span className="settings-label">Reset All</span>
               <span className="settings-sublabel">
-                {t("settings.resetAllDescription")}
+                Reset all settings to their defaults.
               </span>
             </div>
             <button
               className="settings-btn-danger"
               onClick={() => setPendingAction("reset-settings")}
             >
-              {t("common.reset")}
+              Reset
             </button>
           </div>
         </SettingsCard>
@@ -1024,27 +1206,27 @@ export default function SettingsPanel({
       ></div>
       <ConfirmDialog
         open={pendingAction === "reset-settings"}
-        title={t("settings.resetDialogTitle")}
-        message={t("settings.resetDialogMessage")}
-        confirmLabel={t("settings.resetDialogConfirm")}
+        title="Reset all settings"
+        message="This will reset all settings to their default values. This action cannot be undone."
+        confirmLabel="Reset"
         busy={resetting}
         onConfirm={handleConfirmResetSettings}
         onCancel={() => setPendingAction(null)}
       />
       <ConfirmDialog
         open={pendingAction === "clear-stats"}
-        title={t("settings.clearStatsDialogTitle")}
-        message={t("settings.clearStatsDialogMessage")}
-        confirmLabel={t("settings.clearStatsDialogConfirm")}
+        title="Clear usage data"
+        message="This will clear all usage data. This action cannot be undone."
+        confirmLabel="Clear"
         busy={resettingStats}
         onConfirm={handleConfirmClearStats}
         onCancel={() => setPendingAction(null)}
       />
       <ConfirmDialog
         open={pendingAction === "extended-click-speed-limit"}
-        title={t("settings.extendedClickSpeedLimitDialogTitle")}
-        message={t("settings.extendedClickSpeedLimitDialogMessage")}
-        confirmLabel={t("settings.extendedClickSpeedLimitDialogConfirm")}
+        title="Enable extended click speed limit?"
+        message="This will allow click speeds beyond the default limit. This may affect performance."
+        confirmLabel="Enable"
         onConfirm={handleConfirmExtendedClickSpeedLimit}
         onCancel={() => setPendingAction(null)}
       />

@@ -1,7 +1,7 @@
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
 import { useState } from "react";
-import { useTranslation, type TranslationKey } from "../i18n";
+
 import UnavailableReason from "./UnavailableReason";
 import "./Updatebanner.css";
 
@@ -17,41 +17,40 @@ export default function UpdateBanner({
   latestVersion,
 }: UpdateBannerProps) {
   const [stage, setStage] = useState<UpdateStage>("ready");
-  const [statusKey, setStatusKey] = useState<TranslationKey | null>(null);
-  const { t } = useTranslation();
+  const [statusText, setStatusText] = useState<string | null>(null);
 
   const handleUpdate = async () => {
     try {
       setStage("installing");
-      setStatusKey("update.preparing");
+      setStatusText("Preparing update...");
 
       const update = await check();
       if (!update) {
         setStage("ready");
-        setStatusKey("update.notAvailable");
+        setStatusText("Update is no longer available.");
         return;
       }
 
       await update.downloadAndInstall((event) => {
         switch (event.event) {
           case "Started":
-            setStatusKey("update.downloading");
+            setStatusText("Downloading update...");
             break;
           case "Progress":
-            setStatusKey("update.installing");
+            setStatusText("Installing update...");
             break;
           case "Finished":
-            setStatusKey("update.installedRestart");
+            setStatusText("Update installed. Restart to apply it.");
             break;
         }
       });
 
       setStage("restart-required");
-      setStatusKey("update.installedRestart");
+      setStatusText("Update installed. Restart to apply it.");
     } catch (err) {
       console.error("Failed to install update:", err);
       setStage("error");
-      setStatusKey("update.installFailed");
+      setStatusText("Update install failed.");
     }
   };
 
@@ -61,51 +60,44 @@ export default function UpdateBanner({
     } catch (err) {
       console.error("Failed to relaunch app:", err);
       setStage("error");
-      setStatusKey("update.restartFailed");
+      setStatusText("Restart failed. Please reopen the app manually.");
     }
   };
 
   const installDisabledReason =
     stage === "installing"
-      ? statusKey === "update.installing"
-        ? t("update.installAlreadyInstalling")
-        : statusKey === "update.downloading"
-          ? t("update.installAlreadyDownloading")
-          : t("update.installAlreadyPreparing")
+      ? statusText === "Installing update..."
+        ? "The update is already installing. Wait for it to finish before trying again."
+        : statusText === "Downloading update..."
+          ? "The update is already downloading. Wait for the current install to finish."
+          : "The update is already being prepared. Wait for it to finish before trying again."
       : undefined;
 
   return (
-    <div className="update-banner" style={{ flexDirection: "column", alignItems: "stretch", gap: "6px", padding: "6px 10px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-        <span className="update-banner-text-old-version">v{currentVersion}</span>
-        <span className="update-banner-text">{t("update.to")}</span>
-        {/* does not need v for version, gets it from gitHub ↓  */}
-        <span className="update-banner-text-new-version">{latestVersion}</span>
-        {statusKey && (
-          <span className="update-banner-status" data-stage={stage}>
-            {t(statusKey)}
-          </span>
-        )}
-      </div>
+    <div className="update-banner">
+      <span className="update-banner-text-old-version">v{currentVersion}</span>
+      <span className="update-banner-text">to</span>
+      {/* does not need v for version, gets it from gitHub ↓  */}
+      <span className="update-banner-text-new-version">{latestVersion}</span>
+      {statusText && (
+        <span className="update-banner-status" data-stage={stage}>
+          {statusText}
+        </span>
+      )}
       {stage === "restart-required" ? (
-        <button
-          className="update-banner-btn"
-          style={{ width: "100%", padding: "7px 0", fontSize: "0.95em", fontWeight: 600 }}
-          onClick={handleRestart}
-        >
-          {t("update.restartToApply")}
+        <button className="update-banner-btn" onClick={handleRestart}>
+          Restart to Apply Update
         </button>
       ) : (
         <UnavailableReason reason={installDisabledReason}>
           <button
             className="update-banner-btn"
-            style={{ width: "100%", padding: "7px 0", fontSize: "0.95em", fontWeight: 600 }}
             onClick={handleUpdate}
             disabled={stage === "installing"}
           >
             {stage === "installing"
-              ? t("update.installingButton")
-              : t("update.downloadAndInstall")}
+              ? "Installing..."
+              : "Download and Install"}
           </button>
         </UnavailableReason>
       )}

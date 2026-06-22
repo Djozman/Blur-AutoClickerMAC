@@ -150,6 +150,10 @@ mod tests {
             input_type: 0,
             key_code: 0,
             keyboard_uppercase: false,
+            process_list_enabled: false,
+            process_list_mode: crate::engine::ProcessListMode::Whitelist,
+            process_list_entries: Vec::new(),
+            task_switcher_stop_enabled: false,
         }
     }
 

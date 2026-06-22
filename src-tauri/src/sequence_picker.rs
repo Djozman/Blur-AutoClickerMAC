@@ -107,7 +107,7 @@ mod platform {
         l_param: LPARAM,
     ) -> LRESULT {
         if code < 0 {
-            return CallNextHookEx(0, code, w_param, l_param);
+            return CallNextHookEx(std::ptr::null_mut(), code, w_param, l_param);
         }
 
         let (app, stop_after_right_up) = {
@@ -189,7 +189,7 @@ mod platform {
             }
         }
 
-        CallNextHookEx(0, code, w_param, l_param)
+        CallNextHookEx(std::ptr::null_mut(), code, w_param, l_param)
     }
 
     unsafe extern "system" fn keyboard_hook_proc(
@@ -198,7 +198,7 @@ mod platform {
         l_param: LPARAM,
     ) -> LRESULT {
         if code < 0 {
-            return CallNextHookEx(0, code, w_param, l_param);
+            return CallNextHookEx(std::ptr::null_mut(), code, w_param, l_param);
         }
 
         let msg = w_param as u32;
@@ -213,7 +213,7 @@ mod platform {
             return 1;
         }
 
-        CallNextHookEx(0, code, w_param, l_param)
+        CallNextHookEx(std::ptr::null_mut(), code, w_param, l_param)
     }
 
     pub fn start_hooks(app: &AppHandle) -> Result<(), String> {
@@ -222,14 +222,20 @@ mod platform {
 
         std::thread::spawn(move || unsafe {
             let thread_id = GetCurrentThreadId();
-            let mouse_hook = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), 0, 0);
-            if mouse_hook == 0 {
+            let mouse_hook =
+                SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), std::ptr::null_mut(), 0);
+            if mouse_hook.is_null() {
                 let _ = ready_tx.send(Err(String::from("Failed to install mouse hook")));
                 return;
             }
 
-            let keyboard_hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook_proc), 0, 0);
-            if keyboard_hook == 0 {
+            let keyboard_hook = SetWindowsHookExW(
+                WH_KEYBOARD_LL,
+                Some(keyboard_hook_proc),
+                std::ptr::null_mut(),
+                0,
+            );
+            if keyboard_hook.is_null() {
                 UnhookWindowsHookEx(mouse_hook);
                 let _ = ready_tx.send(Err(String::from("Failed to install keyboard hook")));
                 return;
@@ -244,18 +250,18 @@ mod platform {
             let _ = ready_tx.send(Ok(()));
 
             let mut msg = std::mem::zeroed::<MSG>();
-            while GetMessageW(&mut msg, 0, 0, 0) > 0 {}
+            while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {}
 
             UnhookWindowsHookEx(mouse_hook);
             UnhookWindowsHookEx(keyboard_hook);
             let mut runtime = picker().lock().unwrap();
             if runtime.mouse_hook == mouse_hook {
-                runtime.mouse_hook = 0;
+                runtime.mouse_hook = std::ptr::null_mut();
             }
             if runtime.keyboard_hook == keyboard_hook {
-                runtime.keyboard_hook = 0;
+                runtime.keyboard_hook = std::ptr::null_mut();
             }
-            if runtime.mouse_hook == 0 && runtime.keyboard_hook == 0 {
+            if runtime.mouse_hook.is_null() && runtime.keyboard_hook.is_null() {
                 runtime.thread_id = 0;
             }
         });

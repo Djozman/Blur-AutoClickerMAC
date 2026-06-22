@@ -1,5 +1,5 @@
 import type { Settings } from "../../../store";
-import { useTranslation } from "../../../i18n";
+
 import { SETTINGS_LIMITS } from "../../../settingsSchema";
 import { Disableable, InfoIcon, NumInput, ToggleBtn } from "./shared";
 
@@ -14,7 +14,6 @@ export default function SpeedVariationSection({
   update,
   showInfo,
 }: Props) {
-  const { t } = useTranslation();
 
   return (
     <div className="adv-sectioncontainer adv-basic-card">
@@ -27,14 +26,14 @@ export default function SpeedVariationSection({
           }}
         >
           {showInfo ? (
-            <InfoIcon text={t("advanced.speedVariationDescription")} />
+            <InfoIcon text="Randomizes click speed by given percentage." />
           ) : null}
-          <span className="adv-card-title">{t("advanced.speedVariation")}</span>
+          <span className="adv-card-title">Speed Variation</span>
         </div>
         <div className="adv-row" style={{ gap: 8 }}>
           <Disableable
             enabled={settings.speedVariationEnabled}
-            disabledReason={t("advanced.speedVariationUnavailable")}
+            disabledReason="Enable Speed Variation to edit how much the app randomizes your click timing."
           >
             <div className="adv-numbox-sm">
               <NumInput

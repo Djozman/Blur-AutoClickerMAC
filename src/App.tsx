@@ -1,15 +1,22 @@
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
   currentMonitor,
   getCurrentWindow,
   LogicalSize,
 } from "@tauri-apps/api/window";
-import { lazy, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { applyAccentTheme } from "./accentTheme";
 import UpdateBanner from "./components/Updatebanner";
 import { canonicalizeHotkeyForBackend } from "./hotkeys";
-import { I18nProvider, isRtlLanguage } from "./i18n";
+
 import {
   buildPresetSnapshot,
   createPresetDefinition,
@@ -59,7 +66,7 @@ function getPanelSize(
     return { width: 650, height: 175 + extra };
   }
   if (tab === "settings") return { width: 560, height: 720 + extra };
-  if (tab === "zones") return { width: 560, height: 430 + extra };
+  if (tab === "zones") return { width: 750, height: 720 + extra };
   if (advancedSequenceLayout === "tall") {
     return { width: 560, height: 720 + extra };
   }
@@ -96,9 +103,11 @@ async function getClampedPanelSize(
 
 const DEFAULT_STATUS: ClickerStatus = {
   running: false,
+  paused: false,
   clickCount: 0,
   lastError: null,
   stopReason: null,
+  warning: null,
   activeSequenceIndex: null,
   activeSequenceTick: 0,
 };
@@ -131,6 +140,21 @@ function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+type UpdateCheckResult = {
+  updateAvailable: boolean;
+  currentVersion: string;
+  latestVersion: string;
+};
+
+async function checkForUpdates(): Promise<UpdateCheckResult | null> {
+  try {
+    return await invoke<UpdateCheckResult>("check_for_updates");
+  } catch (err) {
+    console.error("Update check failed:", err);
+    return null;
+  }
+}
+
 export default function App() {
   const [tab, setTab] = useState<Tab>("simple");
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -141,6 +165,9 @@ export default function App() {
     currentVersion: string;
     latestVersion: string;
   } | null>(null);
+  const [updateCheckStatus, setUpdateCheckStatus] = useState<
+    "idle" | "checking" | "available" | "unavailable" | "error"
+  >("idle");
   const [dropdownOverflowBottom, setDropdownOverflowBottom] = useState(0);
 
   const hotkeyTimer = useRef<number | null>(null);
@@ -151,6 +178,8 @@ export default function App() {
   const launchWindowPlacementDone = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resizeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toggleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setUiSettings = (nextSettings: Settings) => {
     uiSettingsRef.current = nextSettings;
@@ -234,50 +263,69 @@ export default function App() {
           }
 
           console.error("Failed to register hotkey:", err);
-          restoreLastValidHotkey();
+
+          if (!hotkey) {
+            lastValidHotkeyRef.current = "";
+          } else {
+            restoreLastValidHotkey();
+          }
         });
     }, 250);
   };
 
-  const updateSettings = (
-    patch: Partial<Settings>,
-    options: UpdateSettingsOptions = {},
-  ) => {
-    const { hotkey, ...rest } = patch;
-    const shouldClearActivePreset =
-      !options.preserveActivePreset &&
-      (hotkey !== undefined ||
-        Object.keys(rest).some((key) => OPERATIONAL_SETTING_KEYS.has(key)));
+  const persistCommittedSettingsRef = useRef(persistCommittedSettings);
+  const setUiSettingsRef = useRef(setUiSettings);
+  const queueHotkeyRegistrationRef = useRef(queueHotkeyRegistration);
 
-    const restPatch: Partial<Settings> = { ...rest };
-    if (
-      shouldClearActivePreset &&
-      patch.activePresetId === undefined &&
-      committedSettingsRef.current.activePresetId !== null
-    ) {
-      restPatch.activePresetId = null;
-    }
+  useLayoutEffect(() => {
+    persistCommittedSettingsRef.current = persistCommittedSettings;
+    setUiSettingsRef.current = setUiSettings;
+    queueHotkeyRegistrationRef.current = queueHotkeyRegistration;
+  });
 
-    if (Object.keys(restPatch).length > 0) {
-      const nextUiSettings = sanitizeSettings(
-        { ...uiSettingsRef.current, ...restPatch },
-        APP_VERSION,
-      );
-      const nextCommittedSettings = sanitizeSettings(
-        { ...committedSettingsRef.current, ...restPatch },
-        APP_VERSION,
-      );
-      persistCommittedSettings(nextCommittedSettings, nextUiSettings);
-    }
+  const updateSettings = useCallback(
+    (patch: Partial<Settings>, options: UpdateSettingsOptions = {}) => {
+      const { hotkey, ...rest } = patch;
+      const shouldClearActivePreset =
+        !options.preserveActivePreset &&
+        (hotkey !== undefined ||
+          Object.keys(rest).some((key) => OPERATIONAL_SETTING_KEYS.has(key)));
 
-    if (hotkey !== undefined) {
-      setUiSettings({
-        ...uiSettingsRef.current,
-        hotkey,
-      });
-      queueHotkeyRegistration(hotkey);
-    }
-  };
+      const restPatch: Partial<Settings> = { ...rest };
+      if (
+        shouldClearActivePreset &&
+        patch.activePresetId === undefined &&
+        committedSettingsRef.current.activePresetId !== null
+      ) {
+        restPatch.activePresetId = null;
+      }
+
+      if (Object.keys(restPatch).length > 0) {
+        const nextUiSettings = sanitizeSettings(
+          { ...uiSettingsRef.current, ...restPatch },
+          APP_VERSION,
+        );
+        const nextCommittedSettings = sanitizeSettings(
+          { ...committedSettingsRef.current, ...restPatch },
+          APP_VERSION,
+        );
+
+        persistCommittedSettingsRef.current(
+          nextCommittedSettings,
+          nextUiSettings,
+        );
+      }
+
+      if (hotkey !== undefined) {
+        setUiSettingsRef.current({
+          ...uiSettingsRef.current,
+          hotkey,
+        });
+        queueHotkeyRegistrationRef.current(hotkey);
+      }
+    },
+    [],
+  );
 
   const applyStartupWindowPlacement = async () => {
     await getCurrentWindow().center();
@@ -285,7 +333,7 @@ export default function App() {
 
   const handleWindowClose = async () => {
     if (uiSettingsRef.current.minimizeToTray) {
-      await getCurrentWindow().hide();
+      await invoke("hide_main_window");
     } else {
       await invoke("quit_app");
     }
@@ -548,6 +596,11 @@ export default function App() {
       if (resizeTimeout.current) {
         clearTimeout(resizeTimeout.current);
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const toggleTimer = toggleTimerRef.current;
+      if (toggleTimer) {
+        clearTimeout(toggleTimer);
+      }
     };
   }, []);
 
@@ -571,8 +624,9 @@ export default function App() {
 
   useEffect(() => {
     const handleDropdownOverflow = (event: Event) => {
-      const { active, bottom = 0 } = (event as CustomEvent<DropdownOverflowDetail>)
-        .detail;
+      const { active, bottom = 0 } = (
+        event as CustomEvent<DropdownOverflowDetail>
+      ).detail;
       const nextOverflow = active
         ? Math.min(Math.max(0, bottom), MAX_DROPDOWN_OVERFLOW_BOTTOM)
         : 0;
@@ -596,17 +650,16 @@ export default function App() {
       resizeTimeout.current = null;
     }
 
+    if (!settingsLoaded) return;
+
+    let cancelled = false;
     const root = document.querySelector(".app-root") as HTMLElement;
+    let transitionHandler: ((e: TransitionEvent) => void) | null = null;
 
     void (async () => {
       try {
         const textScale = await invoke<number>("get_text_scale_factor");
         document.documentElement.style.fontSize = `${16 * textScale}px`;
-        console.log("Windows Text Scale:", textScale);
-        console.log(
-          "Actual Root Font Size:",
-          getComputedStyle(document.documentElement).fontSize,
-        );
 
         const preferredSize = getPanelSize(
           tab,
@@ -622,12 +675,15 @@ export default function App() {
         const appWindow = getCurrentWindow();
 
         if (!launchWindowPlacementDone.current) {
+          if (cancelled) return;
           await appWindow.setSize(new LogicalSize(width, windowHeight));
 
+          if (cancelled) return;
           root.style.width = `${width}px`;
           root.style.height = `${height}px`;
 
           await wait(30);
+          if (cancelled) return;
           await applyStartupWindowPlacement();
           launchWindowPlacementDone.current = true;
           return;
@@ -643,18 +699,58 @@ export default function App() {
           const snapH = windowHeight >= currentH ? windowHeight : currentH;
 
           if (snapW !== currentW || snapH !== currentH) {
+            if (cancelled) return;
             await appWindow.setSize(new LogicalSize(snapW, snapH));
           }
 
+          if (cancelled) return;
           root.style.width = `${width}px`;
           root.style.height = `${height}px`;
 
-          resizeTimeout.current = setTimeout(async () => {
-            await appWindow.setSize(new LogicalSize(width, windowHeight));
+          const changedProps: string[] = [];
+          if (width !== currentW) changedProps.push("width");
+          if (windowHeight !== currentH) changedProps.push("height");
+
+          const completed = new Set<string>();
+          transitionHandler = (e: TransitionEvent) => {
+            if (e.target !== root) return;
+            if (!changedProps.includes(e.propertyName)) return;
+            completed.add(e.propertyName);
+            if (completed.size >= changedProps.length) {
+              root.removeEventListener("transitionend", transitionHandler!);
+              if (resizeTimeout.current) {
+                clearTimeout(resizeTimeout.current);
+                resizeTimeout.current = null;
+              }
+              if (!cancelled) {
+                appWindow
+                  .setSize(new LogicalSize(width, windowHeight))
+                  .catch((err) => {
+                    console.error("Failed to finalize window resize:", err);
+                  });
+              }
+            }
+          };
+
+          root.addEventListener("transitionend", transitionHandler);
+
+          resizeTimeout.current = setTimeout(() => {
+            if (transitionHandler) {
+              root.removeEventListener("transitionend", transitionHandler);
+            }
+            if (!cancelled) {
+              appWindow
+                .setSize(new LogicalSize(width, windowHeight))
+                .catch((err) => {
+                  console.error("Failed to finalize window resize:", err);
+                });
+            }
             resizeTimeout.current = null;
-          }, 320);
+          }, 350);
         } else {
+          if (cancelled) return;
           await appWindow.setSize(new LogicalSize(width, windowHeight));
+          if (cancelled) return;
           root.style.width = `${currentW}px`;
           root.style.height = `${currentH}px`;
 
@@ -664,32 +760,79 @@ export default function App() {
           root.style.height = `${height}px`;
         }
       } catch (err) {
-        console.error("Failed to size window:", err);
+        if (!cancelled) {
+          console.error("Failed to size window:", err);
+        }
       }
     })();
-  }, [settings, settingsLoaded, tab, updateInfo, dropdownOverflowBottom]);
+
+    return () => {
+      cancelled = true;
+      if (transitionHandler) {
+        root.removeEventListener("transitionend", transitionHandler);
+      }
+      if (resizeTimeout.current) {
+        clearTimeout(resizeTimeout.current);
+        resizeTimeout.current = null;
+      }
+    };
+  }, [
+    tab,
+    updateInfo,
+    dropdownOverflowBottom,
+    settingsLoaded,
+    settings.advancedSequenceLayout,
+  ]);
 
   useEffect(() => {
-    const checkForUpdates = () => {
-      invoke<{
-        currentVersion: string;
-        latestVersion: string;
-        updateAvailable: boolean;
-      }>("check_for_updates")
-        .then((result) => {
-          if (result?.updateAvailable) {
-            setUpdateInfo({
-              currentVersion: result.currentVersion,
-              latestVersion: result.latestVersion,
-            });
-          }
-        })
-        .catch((err) => console.error("Update check failed:", err));
+    const check = async () => {
+      const result = await checkForUpdates();
+      if (result?.updateAvailable) {
+        setUpdateInfo({
+          currentVersion: result.currentVersion,
+          latestVersion: result.latestVersion,
+        });
+        setUpdateCheckStatus("available");
+      }
     };
 
-    checkForUpdates();
-    const interval = setInterval(checkForUpdates, 60 * 60 * 1000);
+    check();
+    const interval = setInterval(check, 60 * 60 * 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  const handleCheckForUpdate = async () => {
+    setUpdateCheckStatus("checking");
+    const result = await checkForUpdates();
+    if (result) {
+      if (result.updateAvailable) {
+        setUpdateCheckStatus("available");
+        setUpdateInfo({
+          currentVersion: result.currentVersion,
+          latestVersion: result.latestVersion,
+        });
+      } else {
+        setUpdateCheckStatus("unavailable");
+        setUpdateInfo(null);
+      }
+    } else {
+      setUpdateCheckStatus("error");
+      setUpdateInfo(null);
+    }
+    if (cooldownTimerRef.current) {
+      clearTimeout(cooldownTimerRef.current);
+    }
+    cooldownTimerRef.current = setTimeout(() => {
+      setUpdateCheckStatus((prev) => (prev === "available" ? prev : "idle"));
+    }, 60000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (cooldownTimerRef.current) {
+        clearTimeout(cooldownTimerRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -699,11 +842,85 @@ export default function App() {
   }, [settings.accentColor, settings.theme]);
 
   useEffect(() => {
-    document.documentElement.lang = settings.language;
-    document.documentElement.dir = isRtlLanguage(settings.language)
-      ? "rtl"
-      : "ltr";
-  }, [settings.language]);
+    document.documentElement.lang = "en";
+    document.documentElement.dir = "ltr";
+  }, []);
+
+  useEffect(() => {
+    const root = document.querySelector(".app-root") as HTMLElement | null;
+    if (!root) return;
+
+    const panelOpacity = settings.panelOpacity / 100;
+    const colors =
+      settings.theme === "light"
+        ? {
+            surface: "255, 255, 255",
+            elevated: "242, 242, 242",
+            input: "217, 217, 217",
+            inputOff: "217, 217, 217",
+          }
+        : {
+            surface: "26, 26, 26",
+            elevated: "38, 38, 38",
+            input: "59, 59, 59",
+            inputOff: "51, 51, 51",
+          };
+
+    root.style.setProperty(
+      "--bg-surface",
+      `rgba(${colors.surface}, ${panelOpacity})`,
+    );
+    root.style.setProperty(
+      "--bg-elevated",
+      `rgba(${colors.elevated}, ${panelOpacity})`,
+    );
+    root.style.setProperty(
+      "--bg-input",
+      `rgba(${colors.input}, ${panelOpacity})`,
+    );
+    root.style.setProperty(
+      "--bg-input-off",
+      `rgba(${colors.inputOff}, ${panelOpacity})`,
+    );
+    root.style.setProperty("--bg-panel-blur", `${settings.panelBlur}px`);
+
+    return () => {
+      root.style.removeProperty("--bg-surface");
+      root.style.removeProperty("--bg-elevated");
+      root.style.removeProperty("--bg-input");
+      root.style.removeProperty("--bg-input-off");
+      root.style.removeProperty("--bg-panel-blur");
+    };
+  }, [settings.panelOpacity, settings.panelBlur, settings.theme]);
+
+  useEffect(() => {
+    const root = document.querySelector(".app-root") as HTMLElement | null;
+    if (!root) return;
+
+    const img = settings.backgroundImage;
+    const escape = (s: string) => s.replace(/"/g, '\\"');
+
+    if (!img) {
+      root.style.setProperty("--bg-image", "none");
+    } else if (
+      img.startsWith("http://") ||
+      img.startsWith("https://") ||
+      img.startsWith("data:")
+    ) {
+      root.style.setProperty("--bg-image", `url("${escape(img)}")`);
+    } else {
+      root.style.setProperty(
+        "--bg-image",
+        `url("${escape(convertFileSrc(img))}")`,
+      );
+    }
+  }, [settings.backgroundImage]);
+
+  useEffect(() => {
+    const root = document.querySelector(".app-root") as HTMLElement | null;
+    if (!root) return;
+    root.style.setProperty("--bg-opacity", String(settings.backgroundOpacity));
+  }, [settings.backgroundOpacity]);
 
   const handleTabChange = (nextTab: Tab) => {
     setTab(nextTab);
@@ -741,67 +958,78 @@ export default function App() {
     }
   };
 
+  const [stopKey, setStopKey] = useState(0);
+  const prevStopReasonRef = useRef(status.stopReason);
+  if (status.stopReason && status.stopReason !== prevStopReasonRef.current) {
+    prevStopReasonRef.current = status.stopReason;
+    setStopKey((k) => k + 1);
+  }
+
   return (
-    <I18nProvider language={settings.language}>
-      <div className="app-root" data-tab={tab}>
-        <TitleBar
-          tab={tab}
-          setTab={handleTabChange}
-          running={status.running}
-          stopReason={
-            settings.showStopReason && (tab === "advanced" || tab === "zones")
-              ? status.stopReason
-              : null
-          }
-          isAlwaysOnTop={settings.alwaysOnTop}
-          onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
-          onRequestClose={handleWindowClose}
+    <div className="app-root" data-tab={tab}>
+      <TitleBar
+        tab={tab}
+        setTab={handleTabChange}
+        running={status.running}
+        paused={status.paused}
+        stopReason={
+          settings.showStopReason &&
+          (tab === "simple" || tab === "advanced" || tab === "zones")
+            ? status.stopReason
+            : null
+        }
+        stopKey={stopKey}
+        warning={status.warning}
+        isAlwaysOnTop={settings.alwaysOnTop}
+        onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
+        onRequestClose={handleWindowClose}
+      />
+      {updateInfo && (
+        <UpdateBanner
+          key={`${updateInfo.currentVersion}:${updateInfo.latestVersion}`}
+          currentVersion={updateInfo.currentVersion}
+          latestVersion={updateInfo.latestVersion}
         />
-        {updateInfo && (
-          <UpdateBanner
-            key={`${updateInfo.currentVersion}:${updateInfo.latestVersion}`}
-            currentVersion={updateInfo.currentVersion}
-            latestVersion={updateInfo.latestVersion}
+      )}
+      <main className="panel-area">
+        {tab === "simple" && (
+          <SimplePanel settings={settings} update={updateSettings} />
+        )}
+        {tab === "advanced" && (
+          <AdvancedPanel
+            settings={settings}
+            update={updateSettings}
+            showInfo={true}
+            running={status.running}
+            activeSequenceIndex={status.activeSequenceIndex}
+            activeSequenceTick={status.activeSequenceTick}
           />
         )}
-        <main className="panel-area">
-          {tab === "simple" && (
-            <SimplePanel settings={settings} update={updateSettings} />
-          )}
-          {tab === "advanced" && (
-            <AdvancedPanel
-              settings={settings}
-              update={updateSettings}
-              showInfo={true}
-              running={status.running}
-              activeSequenceIndex={status.activeSequenceIndex}
-              activeSequenceTick={status.activeSequenceTick}
-            />
-          )}
-          {tab === "zones" && (
-            <ZonesPanel
-              settings={settings}
-              update={updateSettings}
-              showInfo={true}
-            />
-          )}
-          {tab === "settings" && (
-            <SettingsPanel
-              settings={settings}
-              update={updateSettings}
-              running={status.running}
-              appInfo={appInfo}
-              onSavePreset={handleSavePreset}
-              onApplyPreset={handleApplyPreset}
-              onUpdatePreset={handleUpdatePreset}
-              onRenamePreset={handleRenamePreset}
-              onDeletePreset={handleDeletePreset}
-              onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
-              onReset={handleResetSettings}
-            />
-          )}
-        </main>
-      </div>
-    </I18nProvider>
+        {tab === "zones" && (
+          <ZonesPanel
+            settings={settings}
+            update={updateSettings}
+            showInfo={true}
+          />
+        )}
+        {tab === "settings" && (
+          <SettingsPanel
+            settings={settings}
+            update={updateSettings}
+            running={status.running}
+            appInfo={appInfo}
+            onSavePreset={handleSavePreset}
+            onApplyPreset={handleApplyPreset}
+            onUpdatePreset={handleUpdatePreset}
+            onRenamePreset={handleRenamePreset}
+            onDeletePreset={handleDeletePreset}
+            onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
+            onReset={handleResetSettings}
+            updateCheckStatus={updateCheckStatus}
+            onCheckForUpdate={handleCheckForUpdate}
+          />
+        )}
+      </main>
+    </div>
   );
 }

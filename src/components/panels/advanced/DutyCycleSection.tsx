@@ -1,5 +1,5 @@
 import type { Settings } from "../../../store";
-import { useTranslation } from "../../../i18n";
+
 import { SETTINGS_LIMITS } from "../../../settingsSchema";
 import { InfoIcon, NumInput } from "./shared";
 
@@ -14,7 +14,6 @@ export default function DutyCycleSection({
   update,
   showInfo,
 }: Props) {
-  const { t } = useTranslation();
 
   return (
     <div className="adv-sectioncontainer adv-basic-card">
@@ -27,9 +26,9 @@ export default function DutyCycleSection({
           }}
         >
           {showInfo ? (
-            <InfoIcon text={t("advanced.dutyCycleDescription")} />
+            <InfoIcon text="Choose how long the mouse button gets held during each click. 50% at 1 click per second = 0.5sec held, 0.5sec released" />
           ) : null}
-          <span className="adv-card-title">{t("advanced.dutyCycle")}</span>
+          <span className="adv-card-title">Click Duration</span>
         </div>
         <div className="adv-row" style={{ gap: 6 }}>
           <div className="adv-minmax">

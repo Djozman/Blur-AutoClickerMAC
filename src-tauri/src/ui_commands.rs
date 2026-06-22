@@ -12,6 +12,7 @@ use crate::ClickerStatusPayload;
 
 use crate::engine::mouse::current_cursor_position;
 use crate::engine::worker::current_status;
+use crate::engine::worker::emit_status;
 use crate::engine::worker::now_epoch_ms;
 use crate::engine::worker::start_clicker_inner;
 use crate::engine::worker::stop_clicker_inner;
@@ -51,7 +52,7 @@ pub fn start_clicker(app: AppHandle) -> Result<ClickerStatusPayload, String> {
 
 #[tauri::command]
 pub fn stop_clicker(app: AppHandle) -> Result<ClickerStatusPayload, String> {
-    stop_clicker_inner(&app, Some(String::from("Stopped from UI")))
+    stop_clicker_inner(&app, Some(String::from("Stopped for hotkey input")))
 }
 
 #[tauri::command]
@@ -71,27 +72,30 @@ pub fn update_settings(
 ) -> Result<ClickerSettings, String> {
     let state = app.state::<ClickerState>();
     let was_initialized = state.settings_initialized.load(Ordering::SeqCst);
-    let old = state.settings.lock().unwrap();
-    let zone_changed = old.edge_stop_enabled != settings.edge_stop_enabled
-        || old.edge_stop_top != settings.edge_stop_top
-        || old.edge_stop_right != settings.edge_stop_right
-        || old.edge_stop_bottom != settings.edge_stop_bottom
-        || old.edge_stop_left != settings.edge_stop_left
-        || old.corner_stop_enabled != settings.corner_stop_enabled
-        || old.corner_stop_tl != settings.corner_stop_tl
-        || old.corner_stop_tr != settings.corner_stop_tr
-        || old.corner_stop_bl != settings.corner_stop_bl
-        || old.corner_stop_br != settings.corner_stop_br
-        || old.custom_stop_zone_enabled != settings.custom_stop_zone_enabled
-        || old.custom_stop_zone_x != settings.custom_stop_zone_x
-        || old.custom_stop_zone_y != settings.custom_stop_zone_y
-        || old.custom_stop_zone_width != settings.custom_stop_zone_width
-        || old.custom_stop_zone_height != settings.custom_stop_zone_height;
-    let sequence_changed = old.sequence_enabled != settings.sequence_enabled
-        || old.sequence_points != settings.sequence_points;
-    drop(old);
-
-    *state.settings.lock().unwrap() = settings.clone();
+    let zone_changed: bool;
+    let sequence_changed: bool;
+    {
+        let mut old = state.settings.lock().unwrap();
+        zone_changed = old.edge_stop_enabled != settings.edge_stop_enabled
+            || old.edge_stop_top != settings.edge_stop_top
+            || old.edge_stop_right != settings.edge_stop_right
+            || old.edge_stop_bottom != settings.edge_stop_bottom
+            || old.edge_stop_left != settings.edge_stop_left
+            || old.corner_stop_enabled != settings.corner_stop_enabled
+            || old.corner_stop_tl != settings.corner_stop_tl
+            || old.corner_stop_tr != settings.corner_stop_tr
+            || old.corner_stop_bl != settings.corner_stop_bl
+            || old.corner_stop_br != settings.corner_stop_br
+            || old.custom_stop_zone_enabled != settings.custom_stop_zone_enabled
+            || old.custom_stop_zone_x != settings.custom_stop_zone_x
+            || old.custom_stop_zone_y != settings.custom_stop_zone_y
+            || old.custom_stop_zone_width != settings.custom_stop_zone_width
+            || old.custom_stop_zone_height != settings.custom_stop_zone_height;
+        sequence_changed = old.sequence_enabled != settings.sequence_enabled
+            || old.sequence_points != settings.sequence_points;
+        *old = settings.clone();
+    }
+    *state.warning.lock().unwrap() = None;
 
     if !was_initialized {
         state.settings_initialized.store(true, Ordering::SeqCst);
@@ -150,6 +154,8 @@ pub fn set_hotkey_capture_active(app: AppHandle, active: bool) -> Result<(), Str
         state
             .suppress_hotkey_until_release
             .store(true, Ordering::SeqCst);
+        *state.warning.lock().unwrap() = None;
+        emit_status(&app);
     }
 
     Ok(())
@@ -215,7 +221,21 @@ pub fn set_autostart_enabled(enabled: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn hide_main_window(app: AppHandle) -> Result<(), String> {
+    crate::window_lifecycle::on_hide(&app);
+    if let Some(window) = app.get_webview_window("main") {
+        window.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn quit_app(app: AppHandle) {
     crate::overlay::OVERLAY_THREAD_RUNNING.store(false, std::sync::atomic::Ordering::SeqCst);
     app.exit(0);
+}
+
+#[tauri::command]
+pub fn list_processes() -> Result<Vec<crate::engine::process::ProcessInfo>, String> {
+    Ok(crate::engine::process::list_running_processes())
 }

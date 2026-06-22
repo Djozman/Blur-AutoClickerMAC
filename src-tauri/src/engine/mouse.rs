@@ -118,8 +118,8 @@ mod platform {
         };
 
         unsafe extern "system" fn enum_monitor_proc(
-            monitor: isize,
-            _hdc: isize,
+            monitor: *mut std::ffi::c_void,
+            _hdc: *mut std::ffi::c_void,
             _clip_rect: *mut RECT,
             user_data: isize,
         ) -> i32 {
@@ -141,7 +141,7 @@ mod platform {
         let mut monitors = Vec::new();
         let ok = unsafe {
             EnumDisplayMonitors(
-                0,
+                std::ptr::null_mut(),
                 ptr::null(),
                 Some(enum_monitor_proc),
                 &mut monitors as *mut Vec<VirtualScreenRect> as isize,
@@ -189,7 +189,7 @@ mod platform {
                     mouseData: 0,
                     dwFlags: flags,
                     time,
-                    dwExtraInfo: 0,
+                    dwExtraInfo: super::super::AUTOCLICKER_EXTRA_INFO,
                 },
             },
         }
@@ -517,8 +517,19 @@ pub fn send_batch(down: u32, up: u32, n: usize) {
     platform::send_batch(down, up, n, 0);
 }
 
-pub fn send_clicks(down: u32, up: u32, count: usize, plan: ClickCyclePlan, control: &RunControl) {
+pub fn send_clicks(
+    down: u32,
+    up: u32,
+    count: usize,
+    plan: ClickCyclePlan,
+    control: &RunControl,
+    should_abort: &dyn Fn() -> bool,
+) {
     if count == 0 {
+        return;
+    }
+
+    if should_abort() {
         return;
     }
 
@@ -528,9 +539,12 @@ pub fn send_clicks(down: u32, up: u32, count: usize, plan: ClickCyclePlan, contr
     }
 
     let is_active = || control.is_active();
-    let mut sleep_for = |duration| sleep_interruptible(duration, None, control);
+    let mut sleep_for = |duration| sleep_interruptible(duration, control);
 
     for _ in 0..count {
+        if should_abort() {
+            return;
+        }
         if !execute_click_cycle(
             plan,
             &mut || send_mouse_event(down),

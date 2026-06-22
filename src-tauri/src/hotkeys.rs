@@ -1,7 +1,11 @@
+#[cfg(target_os = "windows")]
+use crate::engine::worker::emit_status;
 use crate::engine::worker::now_epoch_ms;
 use crate::engine::worker::start_clicker_inner;
 use crate::engine::worker::stop_clicker_inner;
 use crate::engine::worker::toggle_clicker_inner;
+#[cfg(target_os = "windows")]
+use crate::engine::AUTOCLICKER_EXTRA_INFO;
 use crate::AppHandle;
 use crate::ClickerState;
 use std::sync::atomic::Ordering;
@@ -274,7 +278,6 @@ pub struct HotkeyBinding {
 // ── Public hotkey API ─────────────────────────────────────────────────────────
 
 pub fn register_hotkey_inner(app: &AppHandle, hotkey: String) -> Result<String, String> {
-    let binding = parse_hotkey_binding(&hotkey)?;
     let state = app.state::<ClickerState>();
     state
         .suppress_hotkey_until_ms
@@ -282,6 +285,13 @@ pub fn register_hotkey_inner(app: &AppHandle, hotkey: String) -> Result<String, 
     state
         .suppress_hotkey_until_release
         .store(true, Ordering::SeqCst);
+
+    if hotkey.is_empty() {
+        *state.registered_hotkey.lock().unwrap() = None;
+        return Ok(String::new());
+    }
+
+    let binding = parse_hotkey_binding(&hotkey)?;
     *state.registered_hotkey.lock().unwrap() = Some(binding.clone());
 
     Ok(format_hotkey_binding(&binding))

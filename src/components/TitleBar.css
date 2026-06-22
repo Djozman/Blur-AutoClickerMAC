@@ -11,6 +11,7 @@
   position: relative;
   z-index: 10;
   flex-shrink: 0;
+  backdrop-filter: blur(var(--bg-panel-blur, 0px));
 }
 
 .title-wrapper {
@@ -158,36 +159,20 @@
   background: var(--accent-green-soft);
 }
 
-/* -- Title Flip Animation -- */
-
-.title-wrapper {
-  perspective: 25rem;
-}
+/* -- Title Horizontal Reveal -- */
 
 .title-flipper {
   display: inline-block;
-  transform-origin: center bottom;
-  transition: transform 0.2s ease-in, opacity 0.2s ease-in;
+  transform-origin: center center;
 }
 
-.title-flipper.flip-out {
-  transform: rotateX(65deg);
-  opacity: 0;
+.title-flipper.squish-in {
+  animation: squishIn 0.25s ease-out both;
 }
 
-.title-flipper.flip-in {
-  animation: titleFlipIn 0.2s ease-out forwards;
-}
-
-@keyframes titleFlipIn {
-  0% {
-    transform: rotateX(-65deg);
-    opacity: 0;
-  }
-  100% {
-    transform: rotateX(0deg);
-    opacity: 1;
-  }
+@keyframes squishIn {
+  0%   { transform: scaleX(0); opacity: 0; }
+  100% { transform: scaleX(1); opacity: 1; }
 }
 
 .window-title.is-reason {

@@ -30,9 +30,11 @@ export type {
 
 export interface ClickerStatus {
   running: boolean;
+  paused: boolean;
   clickCount: number;
   lastError: string | null;
   stopReason: string | null;
+  warning: string | null;
   activeSequenceIndex: number | null;
   activeSequenceTick: number;
 }
