@@ -31,7 +31,7 @@ pub fn normalize_process_name(name: &str) -> String {
         .to_string()
 }
 
-/// Returns the foreground process name. Not implemented on macOS.
+ /// Returns the foreground process name. Not implemented on macOS.
 #[allow(dead_code)]
 pub fn get_foreground_process_name() -> Option<String> {
     None
