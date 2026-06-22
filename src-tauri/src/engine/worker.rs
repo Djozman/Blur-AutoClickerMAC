@@ -317,19 +317,24 @@ pub fn build_config(settings: &ClickerSettings) -> Result<ClickerConfig, String>
     };
 
     let is_keyboard = settings.input_type == "keyboard";
-    let key_code = if is_keyboard && !settings.keyboard_key.is_empty() {
-        match crate::hotkeys::parse_hotkey_main_key(&settings.keyboard_key, &settings.keyboard_key)
-        {
-            Ok((vk, _)) => vk as u16,
+
+    // On macOS, valid CGKeyCodes can be 0 (e.g. the letter "A" is 0x00),
+    // so we must NOT treat 0 as "no key". Use Option to tell "no key selected"
+    // apart from "a real key whose code happens to be 0".
+    let key_code_opt: Option<u16> = if is_keyboard {
+        if settings.keyboard_key.is_empty() {
+            return Err(String::from("Keyboard mode requires a key to be selected"));
+        }
+        match crate::hotkeys::parse_hotkey_main_key(&settings.keyboard_key, "") {
+            Ok((vk, _)) => Some(vk as u16),
             Err(_) => return Err(format!("Unknown keyboard key: '{}'", settings.keyboard_key)),
         }
     } else {
-        0u16
+        None
     };
 
-    if is_keyboard && key_code == 0 {
-        return Err(String::from("Keyboard mode requires a key to be selected"));
-    }
+    // `config.key_code` stays a u16; non-keyboard modes use 0.
+    let key_code: u16 = key_code_opt.unwrap_or(0);
     let keyboard_uppercase =
         is_keyboard && settings.keyboard_key_case == "upper" && is_alphabetic_vk(key_code);
 
@@ -1082,13 +1087,15 @@ mod tests {
         settings.keyboard_key = "a".to_string();
         settings.keyboard_key_case = "upper".to_string();
 
+        // macOS CGKeyCode for "a" is 0x00.
         let config = build_config(&settings).expect("letter key should parse");
-        assert_eq!(config.key_code, b'A' as u16);
+        assert_eq!(config.key_code, 0x00);
         assert!(config.keyboard_uppercase);
 
+        // macOS CGKeyCode for "1" is 0x12.
         settings.keyboard_key = "1".to_string();
         let config = build_config(&settings).expect("digit key should parse");
-        assert_eq!(config.key_code, b'1' as u16);
+        assert_eq!(config.key_code, 0x12);
         assert!(!config.keyboard_uppercase);
     }
 }

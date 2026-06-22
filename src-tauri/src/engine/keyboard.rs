@@ -187,7 +187,35 @@ mod platform {
     }
 
     pub fn is_alphabetic_vk(vk: u16) -> bool {
-        (vk < 26) || (b'A' as u16..=b'Z' as u16).contains(&vk)
+        // Native macOS CGKeyCodes for the 26 ANSI letter keys (see letter_to_vk in hotkeys.rs).
+        matches!(
+            vk,
+            0x00 | 0x01
+                | 0x02
+                | 0x03
+                | 0x04
+                | 0x05
+                | 0x06
+                | 0x07
+                | 0x08
+                | 0x09
+                | 0x0B
+                | 0x0C
+                | 0x0D
+                | 0x0E
+                | 0x0F
+                | 0x10
+                | 0x11
+                | 0x1F
+                | 0x20
+                | 0x22
+                | 0x23
+                | 0x25
+                | 0x26
+                | 0x28
+                | 0x2D
+                | 0x2E
+        )
     }
 
     fn win_vk_to_mac_vk(win_vk: u16) -> u16 {
