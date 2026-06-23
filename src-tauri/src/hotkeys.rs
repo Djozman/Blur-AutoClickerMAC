@@ -694,18 +694,16 @@ enum ModifierGroup {
 }
 
 fn modifier_group_for_vk(vk: i32) -> Option<ModifierGroup> {
-    match vk {
-        v if v == VK_CONTROL as i32 || v == VK_LCONTROL as i32 || v == VK_RCONTROL as i32 => {
-            Some(ModifierGroup::Ctrl)
-        }
-        v if v == VK_MENU as i32 || v == VK_LMENU as i32 || v == VK_RMENU as i32 => {
-            Some(ModifierGroup::Alt)
-        }
-        v if v == VK_SHIFT as i32 || v == VK_LSHIFT as i32 || v == VK_RSHIFT as i32 => {
-            Some(ModifierGroup::Shift)
-        }
-        v if v == VK_LWIN as i32 || v == VK_RWIN as i32 => Some(ModifierGroup::Super),
-        _ => None,
+    if [VK_CONTROL as i32, VK_LCONTROL as i32, VK_RCONTROL as i32].contains(&vk) {
+        Some(ModifierGroup::Ctrl)
+    } else if [VK_MENU as i32, VK_LMENU as i32, VK_RMENU as i32].contains(&vk) {
+        Some(ModifierGroup::Alt)
+    } else if [VK_SHIFT as i32, VK_LSHIFT as i32, VK_RSHIFT as i32].contains(&vk) {
+        Some(ModifierGroup::Shift)
+    } else if [VK_LWIN as i32, VK_RWIN as i32].contains(&vk) {
+        Some(ModifierGroup::Super)
+    } else {
+        None
     }
 }
 
