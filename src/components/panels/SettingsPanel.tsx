@@ -16,7 +16,6 @@ import ChangelogContent from "../ChangelogContent";
 import {
   DEFAULT_MAX_CLICK_SPEED,
   DEFAULT_ACCENT_COLOR,
-  getMaxClickSpeed,
   MAX_PRESETS,
   PRESET_NAME_MAX_LENGTH,
 } from "../../settingsSchema";
@@ -420,7 +419,6 @@ export default function SettingsPanel({
     { value: "wide" as const, label: "Wide" },
     { value: "tall" as const, label: "Tall" },
   ];
-  const maxClickSpeed = getMaxClickSpeed(settings.extendedClickSpeedLimit);
 
   const handleConfirmResetSettings = async () => {
     setResetting(true);

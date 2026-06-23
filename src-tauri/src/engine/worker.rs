@@ -611,7 +611,7 @@ fn check_abort(
         return Some(reason);
     }
     if config.task_switcher_stop_enabled && process::is_task_switcher_active() {
-        return Some(String::from("Blocked by task switcher"));
+        return Some(String::from("Blocked by Alt+Tab"));
     }
     if config.process_list_enabled
         && process::check_process_list(config) == Some(super::ProcessListBehavior::Stop)

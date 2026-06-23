@@ -69,7 +69,7 @@ const STOP_REASON_TEXTS: Record<string, string> = {
   "Right edge failsafe": "Right edge failsafe",
   "Bottom edge failsafe": "Bottom edge failsafe",
   "Left edge failsafe": "Left edge failsafe",
-  "Blocked by task switcher": "Blocked by task switcher",
+  "Blocked by Alt+Tab": "Blocked by Alt+Tab",
   "Blocked by process list": "Blocked by process list",
 };
 
