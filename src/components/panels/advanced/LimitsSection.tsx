@@ -105,14 +105,17 @@ export default function LimitsSection({ settings, update, showInfo }: Props) {
           gap: 6,
           marginTop: 6,
           width: "100%",
-          justifyContent: "space-between",
+          justifyContent: "flex-end",
         }}
       >
         <Disableable
           enabled={activeEnabled}
           disabledReason={activeUnavailableReason}
         >
-          <div className="adv-row" style={{ gap: 6 }}>
+          <div
+            className="adv-row"
+            style={{ gap: 6, marginLeft: "auto" }}
+          >
             {isClicksMode ? (
               <div className="adv-numbox-sm">
                 <NumInput
