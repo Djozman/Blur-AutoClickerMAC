@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 #[cfg(target_os = "windows")]
 fn trim_webview_processes() {
@@ -85,17 +85,9 @@ pub fn start_periodic_trimming(interval_secs: u64) {
     });
 }
 
-pub fn on_hide(app: &AppHandle) {
+pub fn on_hide(_app: &AppHandle) {
     trim_webview_processes();
-    if let Some(main_win) = app.get_webview_window("main") {
-        let _ = main_win
-            .eval("document.querySelector('main')?.style?.setProperty?.('display', 'none');");
-    }
 }
 
-pub fn on_show(app: &AppHandle) {
-    if let Some(main_win) = app.get_webview_window("main") {
-        let _ =
-            main_win.eval("document.querySelector('main')?.style?.removeProperty?.('display');");
-    }
+pub fn on_show(_app: &AppHandle) {
 }

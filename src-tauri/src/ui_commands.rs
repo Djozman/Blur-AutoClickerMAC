@@ -37,12 +37,8 @@ pub fn get_text_scale_factor() -> f64 {
     1.0
 }
 #[tauri::command]
-pub fn set_webview_zoom(window: tauri::Window, factor: f64) -> Result<(), String> {
-    window
-        .get_webview_window("main")
-        .ok_or("webview not found".to_string())?
-        .set_zoom(factor)
-        .map_err(|e: tauri::Error| e.to_string())
+pub fn set_webview_zoom(window: tauri::WebviewWindow, factor: f64) -> Result<(), String> {
+    window.set_zoom(factor).map_err(|e: tauri::Error| e.to_string())
 }
 
 #[tauri::command]
@@ -238,4 +234,9 @@ pub fn quit_app(app: AppHandle) {
 #[tauri::command]
 pub fn list_processes() -> Result<Vec<crate::engine::process::ProcessInfo>, String> {
     Ok(crate::engine::process::list_running_processes())
+}
+
+#[tauri::command]
+pub fn was_autostart_launch() -> bool {
+    std::env::args().any(|a| a == "--autostart")
 }

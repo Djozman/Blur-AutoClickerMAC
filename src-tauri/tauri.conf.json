@@ -16,6 +16,7 @@
       {
         "label": "main",
         "title": "BlurAutoClicker",
+        "visible": false,
         "width": 500,
         "height": 150,
         "resizable": true,

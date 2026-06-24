@@ -1,5 +1,5 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
 import {
   currentMonitor,
   getCurrentWindow,
@@ -72,9 +72,6 @@ function getPanelSize(
   }
   return { width: 960, height: 530 + extra };
 }
-
-const textScale = await invoke<number>("get_text_scale_factor");
-await invoke("set_webview_zoom", { factor: 1.0 / textScale });
 
 async function getClampedPanelSize(
   size: { width: number; height: number },
@@ -523,12 +520,17 @@ export default function App() {
   useEffect(() => {
     let mounted = true;
 
+    invoke<number>("get_text_scale_factor")
+      .then((textScale) => invoke("set_webview_zoom", { factor: 1.0 / textScale }))
+      .catch((err) => console.error("Failed to set zoom:", err));
+
     void Promise.all([
       loadSettings(),
       invoke<AppInfo>("get_app_info"),
       invoke<ClickerStatus>("get_status"),
+      invoke<boolean>("was_autostart_launch"),
     ])
-      .then(async ([loadedSettings, loadedAppInfo, loadedStatus]) => {
+      .then(async ([loadedSettings, loadedAppInfo, loadedStatus, autostartLaunch]) => {
         if (!mounted) return;
 
         let hydratedSettings = loadedSettings;
@@ -578,11 +580,18 @@ export default function App() {
         ) {
           await saveSettings(hydratedSettings);
         }
+
+        if (!autostartLaunch) {
+          await getCurrentWindow().show();
+        }
+        emit("frontend-ready", {}).catch(console.error);
       })
       .catch((err) => {
         console.error("Failed to boot app:", err);
         if (!mounted) return;
         setSettingsLoaded(true);
+        getCurrentWindow().show().catch(console.error);
+        emit("frontend-ready", {}).catch(console.error);
       });
 
     return () => {

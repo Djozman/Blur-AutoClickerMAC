@@ -20,7 +20,7 @@ use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64};
 use std::sync::{Arc, Mutex};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Listener, Manager};
 
 const STATUS_EVENT: &str = "clicker-status";
 
@@ -168,7 +168,14 @@ pub fn run() {
             start_hotkey_listener(handle.clone());
             register_hotkey_inner(&handle, initial_hotkey).map_err(std::io::Error::other)?;
             emit_status(&handle);
-            overlay::init_overlay(app.handle())?;
+
+            let overlay_init_handle = app.handle().clone();
+            app.handle().listen("frontend-ready", move |_| {
+                log::info!("[Window] Frontend ready, initializing overlay...");
+                if let Err(e) = overlay::init_overlay(&overlay_init_handle) {
+                    log::error!("[Window] Overlay init failed: {e}");
+                }
+            });
 
             if std::env::args().any(|a| a == "--autostart") {
                 if let Some(window) = app.get_webview_window("main") {
@@ -205,6 +212,7 @@ pub fn run() {
             ui_commands::get_autostart_enabled,
             ui_commands::set_autostart_enabled,
             ui_commands::list_processes,
+            ui_commands::was_autostart_launch,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
