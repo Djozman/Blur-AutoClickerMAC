@@ -59,15 +59,23 @@ jobs:
 
       - name: Rename tar.gz with arch suffix
         run: |
-          BUNDLE=src-tauri/target/${{ matrix.target }}/release/bundle/macos
+          set -euo pipefail
+          shopt -s nullglob
+
+          BUNDLE=src-tauri/target/$ matrix.target /release/bundle/macos
+
           for f in "$BUNDLE"/*.app.tar.gz; do
             base=$(basename "$f" .app.tar.gz)
-            mv "$f" "$BUNDLE/${base}_${{ matrix.arch }}.app.tar.gz"
+            mv "$f" "$BUNDLE/${base}_$ matrix.arch .app.tar.gz"
           done
+
           for f in "$BUNDLE"/*.app.tar.gz.sig; do
             base=$(basename "$f" .app.tar.gz.sig)
-            mv "$f" "$BUNDLE/${base}_${{ matrix.arch }}.app.tar.gz.sig"
+            mv "$f" "$BUNDLE/${base}_$ matrix.arch .app.tar.gz.sig"
           done
+
+          echo "Bundle contents after rename:"
+          ls -la "$BUNDLE"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -77,13 +85,13 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*_${{ matrix.arch }}.app.tar.gz
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*_${{ matrix.arch }}.app.tar.gz.sig
-          if-no-files-found: warn
+
+          if-no-files-found: error
 
   publish-release:
     name: Publish GitHub Release
     needs: build-macos
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -91,10 +99,10 @@ jobs:
       - name: Get version
         id: version
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          if [ "$ github.event_name " = "workflow_dispatch" ]; then
+            echo "tag=$ github.event.inputs.tag " >> "$GITHUB_OUTPUT"
           else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Download all artifacts
@@ -105,9 +113,8 @@ jobs:
       - name: Extract changelog
         id: changelog
         run: |
-          version="${{ steps.version.outputs.tag }}"
+          version="$ steps.version.outputs.tag "
           version="${version#v}"
-          # Extract the section for this version from CHANGELOG.md
           awk -v v="$version" '
             $0 ~ "^# v" v "([[:space:]]|$)" { found=1; next }
             found && /^# v/ { exit }
@@ -116,42 +123,59 @@ jobs:
           if [ ! -s release_body.md ]; then
             echo "See CHANGELOG.md for details." > release_body.md
           fi
+
       - name: Generate latest.json
+        env:
+          TAG: $ steps.version.outputs.tag
         run: |
-          TAG="$ steps.version.outputs.tag "
-          VERSION="${TAG#v}"
-          AARCH_SIG=$(cat artifacts/macos-aarch64/*_aarch64.app.tar.gz.sig)
-          X86_SIG=$(cat artifacts/macos-x86_64/*_x86_64.app.tar.gz.sig)
-          AARCH_FILE=$(basename artifacts/macos-aarch64/*_aarch64.app.tar.gz)
-          X86_FILE=$(basename artifacts/macos-x86_64/*_x86_64.app.tar.gz)
+          set -euo pipefail
+          shopt -s nullglob
+
+          aarch64_sig=(artifacts/macos-aarch64/*_aarch64.app.tar.gz.sig)
+          x86_64_sig=(artifacts/macos-x86_64/*_x86_64.app.tar.gz.sig)
+
+          if [ ${#aarch64_sig[@]} -eq 0 ] || [ ${#x86_64_sig[@]} -eq 0 ]; then
+            echo "::error::A .sig is missing — updater signing didn't run. Check TAURI_SIGNING_PRIVATE_KEY."
+            find artifacts -type f
+            exit 1
+          fi
+
+          AARCH64_SIG=$(cat "${aarch64_sig[0]}")
+          X86_64_SIG=$(cat "${x86_64_sig[0]}")
+          # derive the .tar.gz name straight from the .sig so they always match
+          AARCH64_FILE=$(basename "${aarch64_sig[0]}" .sig)
+          X86_64_FILE=$(basename "${x86_64_sig[0]}" .sig)
           BASE="https://github.com/Djozman/Blur-AutoClickerMAC/releases/download/${TAG}"
+
           cat > latest.json <<EOF
           {
-            "version": "${VERSION}",
+            "version": "${TAG}",
             "notes": "See the changelog for details.",
             "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "platforms": {
               "darwin-aarch64": {
-                "signature": "${AARCH_SIG}",
-                "url": "${BASE}/${AARCH_FILE}"
+                "signature": "${AARCH64_SIG}",
+                "url": "${BASE}/${AARCH64_FILE}"
               },
               "darwin-x86_64": {
-                "signature": "${X86_SIG}",
-                "url": "${BASE}/${X86_FILE}"
+                "signature": "${X86_64_SIG}",
+                "url": "${BASE}/${X86_64_FILE}"
               }
             }
           }
           EOF
+          cat latest.json
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: ${{ steps.version.outputs.tag }} Release
+          tag_name: $ steps.version.outputs.tag
+          name: $ steps.version.outputs.tag  Release
           body_path: release_body.md
-          files: artifacts/**/*
+          files: |
+            artifacts/**/*
             latest.json
           draft: false
           prerelease: false
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: $ secrets.GITHUB_TOKEN
