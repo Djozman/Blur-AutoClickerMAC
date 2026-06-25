@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   build-macos:
-    name: Build macOS (${{ matrix.target }})
+    name: Build macOS ($ matrix.arch )
     runs-on: macos-latest
     timeout-minutes: 60
     strategy:
@@ -39,7 +39,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: $ matrix.target
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -51,27 +51,30 @@ jobs:
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: $ secrets.TAURI_SIGNING_PRIVATE_KEY
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: $ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD
         with:
           tauriScript: npx tauri
-          args: --target ${{ matrix.target }}
+          args: --target $ matrix.target
 
       - name: Rename tar.gz with arch suffix
+        env:
+          TARGET: $ matrix.target
+          ARCH: $ matrix.arch
         run: |
           set -euo pipefail
           shopt -s nullglob
 
-          BUNDLE=src-tauri/target/$ matrix.target /release/bundle/macos
+          BUNDLE="src-tauri/target/${TARGET}/release/bundle/macos"
 
           for f in "$BUNDLE"/*.app.tar.gz; do
             base=$(basename "$f" .app.tar.gz)
-            mv "$f" "$BUNDLE/${base}_$ matrix.arch .app.tar.gz"
+            mv "$f" "$BUNDLE/${base}_${ARCH}.app.tar.gz"
           done
 
           for f in "$BUNDLE"/*.app.tar.gz.sig; do
             base=$(basename "$f" .app.tar.gz.sig)
-            mv "$f" "$BUNDLE/${base}_$ matrix.arch .app.tar.gz.sig"
+            mv "$f" "$BUNDLE/${base}_${ARCH}.app.tar.gz.sig"
           done
 
           echo "Bundle contents after rename:"
@@ -80,12 +83,11 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: macos-${{ matrix.arch }}
+          name: macos-$ matrix.arch
           path: |
-            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*_${{ matrix.arch }}.app.tar.gz
-            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*_${{ matrix.arch }}.app.tar.gz.sig
-
+            src-tauri/target/$ matrix.target /release/bundle/dmg/*.dmg
+            src-tauri/target/$ matrix.target /release/bundle/macos/*_$ matrix.arch .app.tar.gz
+            src-tauri/target/$ matrix.target /release/bundle/macos/*_$ matrix.arch .app.tar.gz.sig
           if-no-files-found: error
 
   publish-release:
@@ -142,7 +144,6 @@ jobs:
 
           AARCH64_SIG=$(cat "${aarch64_sig[0]}")
           X86_64_SIG=$(cat "${x86_64_sig[0]}")
-          # derive the .tar.gz name straight from the .sig so they always match
           AARCH64_FILE=$(basename "${aarch64_sig[0]}" .sig)
           X86_64_FILE=$(basename "${x86_64_sig[0]}" .sig)
           BASE="https://github.com/Djozman/Blur-AutoClickerMAC/releases/download/${TAG}"
