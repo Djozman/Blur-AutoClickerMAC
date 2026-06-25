@@ -116,6 +116,32 @@ jobs:
           if [ ! -s release_body.md ]; then
             echo "See CHANGELOG.md for details." > release_body.md
           fi
+      - name: Generate latest.json
+        run: |
+          TAG="$ steps.version.outputs.tag "
+          VERSION="${TAG#v}"
+          AARCH_SIG=$(cat artifacts/macos-aarch64/*_aarch64.app.tar.gz.sig)
+          X86_SIG=$(cat artifacts/macos-x86_64/*_x86_64.app.tar.gz.sig)
+          AARCH_FILE=$(basename artifacts/macos-aarch64/*_aarch64.app.tar.gz)
+          X86_FILE=$(basename artifacts/macos-x86_64/*_x86_64.app.tar.gz)
+          BASE="https://github.com/Djozman/Blur-AutoClickerMAC/releases/download/${TAG}"
+          cat > latest.json <<EOF
+          {
+            "version": "${VERSION}",
+            "notes": "See the changelog for details.",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "${AARCH_SIG}",
+                "url": "${BASE}/${AARCH_FILE}"
+              },
+              "darwin-x86_64": {
+                "signature": "${X86_SIG}",
+                "url": "${BASE}/${X86_FILE}"
+              }
+            }
+          }
+          EOF
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -124,6 +150,7 @@ jobs:
           name: ${{ steps.version.outputs.tag }} Release
           body_path: release_body.md
           files: artifacts/**/*
+            latest.json
           draft: false
           prerelease: false
         env:
