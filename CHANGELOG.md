@@ -1,3 +1,17 @@
+# v3.8.2 - 25.06.2026 (d.m.y)
+## New
+- Verbose logging and crash reporting. Logs live at the bottom of the Settings panel (local only); use the Export button to bundle them into a single zip.
+## Changed
+- Hotkey field now accepts modifier keys, ESC and Return.
+- Keyboard Clicker now accepts modifier keys, ESC and Return.
+- Updated wording for the extended click-speed limit description.
+- Updated wording for the task switcher option.
+- Right-aligned the items in the Limits section of the advanced panel.
+## Fixed
+- Fixed the mouse cursor behaving erratically while the app is running.
+- Fixed the app sometimes launching with a blank window.
+- Fixed a crash when opening the Zones panel.
+
 # v3.8.0 - 21.06.2026 (d.m.y)
 ## New
 - SUPPORT FOR CUSTOM BACKGROUND IMAGES! (Settings → Appearance → Background Image).
