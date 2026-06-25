@@ -16,6 +16,7 @@ import { changelogEntries } from "../../changelog";
 import ChangelogContent from "../ChangelogContent";
 import {
   DEFAULT_MAX_CLICK_SPEED,
+  EXTENDED_MAX_CLICK_SPEED,
   DEFAULT_ACCENT_COLOR,
   MAX_PRESETS,
   PRESET_NAME_MAX_LENGTH,
@@ -411,6 +412,7 @@ export default function SettingsPanel({
 
   const hasStats = stats !== null && stats.totalSessions > 0;
   const presetLimitReached = settings.presets.length >= MAX_PRESETS;
+  const maxClickSpeed = settings.extendedClickSpeedLimit ? EXTENDED_MAX_CLICK_SPEED : DEFAULT_MAX_CLICK_SPEED;
   const activeEditingPresetId = running ? null : editingPresetId;
   const activeConfirmingDeleteId = running ? null : confirmingDeleteId;
   const onOffOptions = [
