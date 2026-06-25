@@ -8,7 +8,6 @@
 - Updated wording for the task switcher option.
 - Right-aligned the items in the Limits section of the advanced panel.
 ## Fixed
-- Fixed the mouse cursor behaving erratically while the app is running.
 - Fixed the app sometimes launching with a blank window.
 - Fixed a crash when opening the Zones panel.
 
