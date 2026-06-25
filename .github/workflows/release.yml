@@ -127,8 +127,8 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          aarch64_sig=(artifacts/macos-aarch64/*_aarch64.app.tar.gz.sig)
-          x86_64_sig=(artifacts/macos-x86_64/*_x86_64.app.tar.gz.sig)
+          aarch64_sig=(artifacts/macos-aarch64/macos/*_aarch64.app.tar.gz.sig)
+          x86_64_sig=(artifacts/macos-x86_64/macos/*_x86_64.app.tar.gz.sig)
           if [ ${#aarch64_sig[@]} -eq 0 ] || [ ${#x86_64_sig[@]} -eq 0 ]; then
             echo "::error::A .sig is missing — updater signing didn't run."
             find artifacts -type f
