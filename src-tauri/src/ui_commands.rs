@@ -240,3 +240,98 @@ pub fn list_processes() -> Result<Vec<crate::engine::process::ProcessInfo>, Stri
 pub fn was_autostart_launch() -> bool {
     std::env::args().any(|a| a == "--autostart")
 }
+
+#[tauri::command]
+pub fn get_diagnostics_info() -> Result<crate::diagnostics::DiagnosticsInfo, String> {
+    crate::diagnostics::get_diagnostics_info()
+        .ok_or_else(|| "Failed to resolve diagnostics info".to_string())
+}
+
+#[tauri::command]
+pub fn open_diagnostics_folder() -> Result<(), String> {
+    let path = crate::diagnostics::diagnostics_root()
+        .ok_or_else(|| "Failed to resolve diagnostics root".to_string())?;
+    open::that(&path).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn export_diagnostics_bundle() -> Result<String, String> {
+    use std::io::Write;
+
+    let exports_dir = crate::diagnostics::exports_dir()
+        .ok_or_else(|| "Failed to resolve exports path".to_string())?;
+    std::fs::create_dir_all(&exports_dir).map_err(|e| e.to_string())?;
+
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let zip_path = exports_dir.join(format!("BlurAutoClicker-diagnostics-{ts}.zip"));
+
+    let file = std::fs::File::create(&zip_path).map_err(|e| e.to_string())?;
+    let mut zip_writer = zip::ZipWriter::new(file);
+
+    let root = crate::diagnostics::diagnostics_root()
+        .ok_or_else(|| "Failed to resolve diagnostics root".to_string())?;
+
+    for entry in walkdir::WalkDir::new(&root)
+        .into_iter()
+        .filter_entry(|e| !e.file_name().to_string_lossy().starts_with("Exports"))
+    {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) => {
+                log::warn!("[Diagnostics] Skipping unreadable entry in export: {e}");
+                continue;
+            }
+        };
+        if entry.file_type().is_dir() {
+            continue;
+        }
+        let relative = entry
+            .path()
+            .strip_prefix(&root)
+            .map_err(|e| e.to_string())?;
+        let name = relative.to_string_lossy().replace('\\', "/");
+        let data = std::fs::read(entry.path()).map_err(|e| e.to_string())?;
+        zip_writer
+            .start_file(
+                name,
+                zip::write::SimpleFileOptions::default()
+                    .compression_method(zip::CompressionMethod::Deflated),
+            )
+            .map_err(|e| e.to_string())?;
+        zip_writer.write_all(&data).map_err(|e| e.to_string())?;
+    }
+
+    zip_writer.finish().map_err(|e| e.to_string())?;
+
+    let mut entries: Vec<_> = std::fs::read_dir(&exports_dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_name().to_string_lossy().ends_with(".zip"))
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+    while entries.len() > 5 {
+        if let Some(oldest) = entries.first() {
+            let _ = std::fs::remove_file(oldest.path());
+            entries.remove(0);
+        }
+    }
+
+    Ok(zip_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn debug_trigger_panic() -> Result<(), String> {
+    #[cfg(debug_assertions)]
+    {
+        log::error!("[Diagnostics] Triggering intentional panic for panic hook test");
+        panic!("Intentional panic triggered for diagnostics verification");
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        Err("Panic trigger is only available in debug builds".to_string())
+    }
+}

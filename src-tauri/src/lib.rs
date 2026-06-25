@@ -10,6 +10,10 @@ mod sequence_picker;
 mod ui_commands;
 mod updates;
 mod window_lifecycle;
+mod app_events;
+mod crash_handler;
+mod diag_setup;
+mod diagnostics;
 
 use crate::app_state::ClickerState;
 use crate::app_state::ClickerStatusPayload;
@@ -53,12 +57,10 @@ pub fn run() {
             warning: Mutex::new(None),
         })
         .setup(|app| {
-            if cfg!(debug_assertions) {
-                let _ = app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                );
+            diag_setup::setup_panic_hook();
+            diag_setup::setup_logging(app.handle());
+            if let Err(e) = crate::crash_handler::initialize_crashpad() {
+                log::warn!("[Crash] crash handler init failed: {e}");
             }
 
             let show_item = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
@@ -213,6 +215,10 @@ pub fn run() {
             ui_commands::set_autostart_enabled,
             ui_commands::list_processes,
             ui_commands::was_autostart_launch,
+            ui_commands::get_diagnostics_info,
+            ui_commands::open_diagnostics_folder,
+            ui_commands::export_diagnostics_bundle,
+            ui_commands::debug_trigger_panic,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

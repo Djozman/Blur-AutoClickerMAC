@@ -7,6 +7,7 @@ import type {
 } from "../../store";
 
 import { invoke } from "@tauri-apps/api/core";
+import { error } from "@tauri-apps/plugin-log";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -293,6 +294,8 @@ export default function SettingsPanel({
     null,
   );
   const [showChangelog, setShowChangelog] = useState(false);
+  const [diagnosticsStatus, setDiagnosticsStatus] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const presetsListRef = useRef<HTMLDivElement>(null);
@@ -1197,6 +1200,68 @@ export default function SettingsPanel({
               Reset
             </button>
           </div>
+        </SettingsCard>
+
+        <SettingsCard
+          title="Diagnostics"
+          description="Your logs & crash reports"
+        >
+          <div className="settings-row">
+            <div className="settings-label-group">
+              <span className="settings-label">Diagnostics</span>
+              <span className="settings-sublabel">
+                View or export your diagnostics.
+              </span>
+            </div>
+            <div className="settings-row-actions">
+              <button
+                className="settings-btn-secondary"
+                onClick={async () => {
+                  try {
+                    await invoke("open_diagnostics_folder");
+                  } catch (err) {
+                    error(
+                      JSON.stringify({
+                        source: "SettingsPanel.openDiagnostics",
+                        error: String(err),
+                      }),
+                    );
+                  }
+                }}
+              >
+                Open Folder
+              </button>
+              <button
+                className="settings-btn-secondary"
+                disabled={exporting}
+                onClick={async () => {
+                  setExporting(true);
+                  setDiagnosticsStatus(null);
+                  try {
+                    const path: string = await invoke(
+                      "export_diagnostics_bundle",
+                    );
+                    setDiagnosticsStatus(`Exported to ${path}`);
+                  } catch (err) {
+                    setDiagnosticsStatus("Export failed");
+                    error(
+                      JSON.stringify({
+                        source: "SettingsPanel.exportDiagnostics",
+                        error: String(err),
+                      }),
+                    );
+                  } finally {
+                    setExporting(false);
+                  }
+                }}
+              >
+                {exporting ? "Exporting..." : "Export"}
+              </button>
+            </div>
+          </div>
+          {diagnosticsStatus && (
+            <span className="settings-note">{diagnosticsStatus}</span>
+          )}
         </SettingsCard>
       </div>
       <div
