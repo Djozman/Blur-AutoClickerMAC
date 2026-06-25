@@ -48,6 +48,7 @@ pub fn setup_logging(handle: &AppHandle) {
     let builder = tauri_plugin_log::Builder::default()
         .targets(targets)
         .level(log_level)
+        .level_for("tao", log::LevelFilter::Warn)
         .max_file_size(2_500_000)
         .rotation_strategy(RotationStrategy::KeepSome(0))
         .timezone_strategy(TimezoneStrategy::UseLocal);
