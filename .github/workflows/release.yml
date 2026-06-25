@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   build-macos:
-    name: Build macOS ($ matrix.arch )
+    name: Build macOS (${{ matrix.arch }})
     runs-on: macos-latest
     timeout-minutes: 60
     strategy:
@@ -25,7 +25,6 @@ jobs:
             arch: aarch64
           - target: x86_64-apple-darwin
             arch: x86_64
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,7 +38,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: $ matrix.target
+          targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -51,43 +50,39 @@ jobs:
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
-          TAURI_SIGNING_PRIVATE_KEY: $ secrets.TAURI_SIGNING_PRIVATE_KEY
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: $ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tauriScript: npx tauri
-          args: --target $ matrix.target
+          args: --target ${{ matrix.target }}
 
       - name: Rename tar.gz with arch suffix
         env:
-          TARGET: $ matrix.target
-          ARCH: $ matrix.arch
+          TARGET: ${{ matrix.target }}
+          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
           shopt -s nullglob
-
           BUNDLE="src-tauri/target/${TARGET}/release/bundle/macos"
-
           for f in "$BUNDLE"/*.app.tar.gz; do
             base=$(basename "$f" .app.tar.gz)
             mv "$f" "$BUNDLE/${base}_${ARCH}.app.tar.gz"
           done
-
           for f in "$BUNDLE"/*.app.tar.gz.sig; do
             base=$(basename "$f" .app.tar.gz.sig)
             mv "$f" "$BUNDLE/${base}_${ARCH}.app.tar.gz.sig"
           done
-
           echo "Bundle contents after rename:"
           ls -la "$BUNDLE"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: macos-$ matrix.arch
+          name: macos-${{ matrix.arch }}
           path: |
-            src-tauri/target/$ matrix.target /release/bundle/dmg/*.dmg
-            src-tauri/target/$ matrix.target /release/bundle/macos/*_$ matrix.arch .app.tar.gz
-            src-tauri/target/$ matrix.target /release/bundle/macos/*_$ matrix.arch .app.tar.gz.sig
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*_${{ matrix.arch }}.app.tar.gz
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*_${{ matrix.arch }}.app.tar.gz.sig
           if-no-files-found: error
 
   publish-release:
@@ -101,8 +96,8 @@ jobs:
       - name: Get version
         id: version
         run: |
-          if [ "$ github.event_name " = "workflow_dispatch" ]; then
-            echo "tag=$ github.event.inputs.tag " >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
           else
             echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           fi
@@ -115,7 +110,7 @@ jobs:
       - name: Extract changelog
         id: changelog
         run: |
-          version="$ steps.version.outputs.tag "
+          version="${{ steps.version.outputs.tag }}"
           version="${version#v}"
           awk -v v="$version" '
             $0 ~ "^# v" v "([[:space:]]|$)" { found=1; next }
@@ -128,29 +123,26 @@ jobs:
 
       - name: Generate latest.json
         env:
-          TAG: $ steps.version.outputs.tag
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
           shopt -s nullglob
-
           aarch64_sig=(artifacts/macos-aarch64/*_aarch64.app.tar.gz.sig)
           x86_64_sig=(artifacts/macos-x86_64/*_x86_64.app.tar.gz.sig)
-
           if [ ${#aarch64_sig[@]} -eq 0 ] || [ ${#x86_64_sig[@]} -eq 0 ]; then
-            echo "::error::A .sig is missing — updater signing didn't run. Check TAURI_SIGNING_PRIVATE_KEY."
+            echo "::error::A .sig is missing — updater signing didn't run."
             find artifacts -type f
             exit 1
           fi
-
           AARCH64_SIG=$(cat "${aarch64_sig[0]}")
           X86_64_SIG=$(cat "${x86_64_sig[0]}")
           AARCH64_FILE=$(basename "${aarch64_sig[0]}" .sig)
           X86_64_FILE=$(basename "${x86_64_sig[0]}" .sig)
+          VERSION="${TAG#v}"
           BASE="https://github.com/Djozman/Blur-AutoClickerMAC/releases/download/${TAG}"
-
-          cat > latest.json <<EOF
+          cat > latest.json <<JSON
           {
-            "version": "${TAG}",
+            "version": "${VERSION}",
             "notes": "See the changelog for details.",
             "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "platforms": {
@@ -164,14 +156,14 @@ jobs:
               }
             }
           }
-          EOF
+          JSON
           cat latest.json
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: $ steps.version.outputs.tag
-          name: $ steps.version.outputs.tag  Release
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }} Release
           body_path: release_body.md
           files: |
             artifacts/**/*
@@ -179,4 +171,4 @@ jobs:
           draft: false
           prerelease: false
         env:
-          GITHUB_TOKEN: $ secrets.GITHUB_TOKEN
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
