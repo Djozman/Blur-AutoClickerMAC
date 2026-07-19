@@ -317,7 +317,7 @@ pub fn start_clicker_inner(app: &AppHandle) -> AppResult<ClickerStatusPayload> {
     let config = build_config(&settings)?;
 
     // Prevent feedback loop: keyboard key must not match a modifier-free hotkey
-    if config.input_type == crate::engine::InputType::Keyboard && config.key_code > 0 {
+    if config.input_type == crate::engine::InputType::Keyboard {
         let hotkey_binding = state
             .registered_hotkey
             .lock()
@@ -494,19 +494,24 @@ pub fn build_config(settings: &ClickerSettings) -> AppResult<ClickerConfig> {
     };
 
     let is_keyboard = settings.input_type == "keyboard";
-    let key_code = if is_keyboard && !settings.keyboard_key.is_empty() {
+
+    let key_code_option = if is_keyboard {
+        if settings.keyboard_key.is_empty() {
+            return Err(AppError::NoKeySelected);
+        }
+
         match crate::hotkeys::parse_hotkey_main_key(&settings.keyboard_key, &settings.keyboard_key)
         {
-            Ok((vk, _)) => vk as u16,
+            Ok((vk, _)) => Some(vk as u16),
             Err(_) => return Err(AppError::UnknownKey(settings.keyboard_key.clone())),
         }
     } else {
-        0u16
+        None
     };
 
-    if is_keyboard && key_code == 0 {
-        return Err(AppError::NoKeySelected);
-    }
+    // macOS key code 0 is the letter A, so zero cannot represent
+    // "no key selected". InputType identifies whether this is keyboard mode.
+    let key_code = key_code_option.unwrap_or(0);
     let keyboard_uppercase =
         is_keyboard && settings.keyboard_key_case == "upper" && is_alphabetic_vk(key_code);
 
@@ -715,7 +720,7 @@ struct ClickerContext {
 
 impl ClickerContext {
     fn new(config: &ClickerConfig) -> Self {
-        let is_keyboard = config.input_type.is_keyboard() && config.key_code > 0;
+        let is_keyboard = config.input_type.is_keyboard();
         let (down_flag, up_flag) = if is_keyboard {
             (0, 0)
         } else {
@@ -1262,12 +1267,23 @@ mod tests {
         settings.keyboard_key_case = "upper".to_string();
 
         let config = build_config(&settings).expect("letter key should parse");
+        #[cfg(target_os = "windows")]
         assert_eq!(config.key_code, b'A' as u16);
+
+        #[cfg(target_os = "macos")]
+        assert_eq!(config.key_code, 0);
+
         assert!(config.keyboard_uppercase);
 
         settings.keyboard_key = "1".to_string();
         let config = build_config(&settings).expect("digit key should parse");
+
+        #[cfg(target_os = "windows")]
         assert_eq!(config.key_code, b'1' as u16);
+
+        #[cfg(target_os = "macos")]
+        assert_eq!(config.key_code, 18);
+
         assert!(!config.keyboard_uppercase);
     }
 }
