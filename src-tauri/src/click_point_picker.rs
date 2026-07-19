@@ -12,7 +12,7 @@ const CURSOR_EMIT_INTERVAL: Duration = Duration::from_millis(16);
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-struct SequencePointPickedPayload {
+struct ClickPointPickedPayload {
     x: i32,
     y: i32,
     continue_picking: bool,
@@ -60,7 +60,7 @@ mod platform {
         WM_MOUSEMOVE, WM_QUIT, WM_RBUTTONDBLCLK, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SYSKEYDOWN,
     };
 
-    use super::{picker, PickerRuntime, SequencePointPickedPayload, CURSOR_EMIT_INTERVAL};
+    use super::{picker, ClickPointPickedPayload, PickerRuntime, CURSOR_EMIT_INTERVAL};
     use crate::engine::mouse::current_cursor_position;
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -124,8 +124,8 @@ mod platform {
                 MouseHookDecision::Pick { continue_picking } => {
                     if let Some((x, y)) = current_cursor_position() {
                         let _ = app.emit(
-                            "sequence-point-picked",
-                            SequencePointPickedPayload {
+                            "click-point-picked",
+                            ClickPointPickedPayload {
                                 x,
                                 y,
                                 continue_picking,
@@ -143,8 +143,8 @@ mod platform {
                 MouseHookDecision::Delete => {
                     if let Some((x, y)) = current_cursor_position() {
                         let _ = app.emit(
-                            "sequence-point-delete-requested",
-                            SequencePointPickedPayload {
+                            "click-point-delete-requested",
+                            ClickPointPickedPayload {
                                 x,
                                 y,
                                 continue_picking: false,
@@ -157,10 +157,10 @@ mod platform {
                     if stop_after_right_up {
                         let runtime = picker().lock().unwrap();
                         if let Some(app) = &runtime.app {
-                            let _ = app.emit("sequence-pick-ended", ());
+                            let _ = app.emit("click-pick-ended", ());
                         }
                         drop(runtime);
-                        super::cancel_sequence_point_pick_inner(&app);
+                        super::cancel_click_point_pick_inner(&app);
                     } else {
                         return 1;
                     }
@@ -181,7 +181,7 @@ mod platform {
                     if let Some(bounds) = current_virtual_screen_rect() {
                         let offset = VirtualScreenRect::new(x, y, 1, 1).offset_from(bounds);
                         let _ = app.emit(
-                            "sequence-pick-cursor",
+                            "click-pick-cursor",
                             serde_json::json!({ "x": offset.left, "y": offset.top }),
                         );
                     }
@@ -208,7 +208,7 @@ mod platform {
             let app = picker().lock().unwrap().app.clone();
             drop(picker());
             if let Some(app) = app {
-                super::cancel_sequence_point_pick_inner(&app);
+                super::cancel_click_point_pick_inner(&app);
             }
             return 1;
         }
@@ -269,11 +269,11 @@ mod platform {
         match ready_rx.recv_timeout(Duration::from_secs(1)) {
             Ok(Ok(())) => Ok(()),
             Ok(Err(e)) => {
-                super::cancel_sequence_point_pick_inner(&app);
+                super::cancel_click_point_pick_inner(&app);
                 Err(e)
             }
             Err(_) => {
-                super::cancel_sequence_point_pick_inner(&app);
+                super::cancel_click_point_pick_inner(&app);
                 Err(String::from("Timed out starting hooks"))
             }
         }
@@ -293,10 +293,10 @@ mod platform {
 
         if let Some(app) = &app {
             app.state::<ClickerState>()
-                .sequence_pick_active
+                .click_point_pick_active
                 .store(false, Ordering::SeqCst);
             if notify_overlay {
-                let _ = app.emit("sequence-pick-ended", ());
+                let _ = app.emit("click-pick-ended", ());
             }
         }
 
@@ -319,7 +319,7 @@ mod platform {
 
     use tauri::{AppHandle, Emitter, Manager};
 
-    use super::{picker, SequencePointPickedPayload};
+    use super::{picker, ClickPointPickedPayload};
     use crate::engine::mouse::{current_virtual_screen_rect, VirtualScreenRect};
     use crate::ClickerState;
 
@@ -474,11 +474,11 @@ mod platform {
         match ready_rx.recv_timeout(std::time::Duration::from_secs(1)) {
             Ok(Ok(())) => Ok(()),
             Ok(Err(e)) => {
-                super::cancel_sequence_point_pick_inner(app);
+                super::cancel_click_point_pick_inner(app);
                 Err(e)
             }
             Err(_) => {
-                super::cancel_sequence_point_pick_inner(app);
+                super::cancel_click_point_pick_inner(app);
                 Err(String::from("Timed out starting event tap"))
             }
         }
@@ -497,10 +497,10 @@ mod platform {
 
         if let Some(app) = &app {
             app.state::<ClickerState>()
-                .sequence_pick_active
+                .click_point_pick_active
                 .store(false, Ordering::SeqCst);
             if notify_overlay {
-                let _ = app.emit("sequence-pick-ended", ());
+                let _ = app.emit("click-pick-ended", ());
             }
         }
 
@@ -517,7 +517,7 @@ mod platform {
     pub fn poll_pick(app: &AppHandle) -> bool {
         if CANCEL_REQUESTED.swap(false, Ordering::SeqCst) {
             let app = app.clone();
-            super::cancel_sequence_point_pick_inner(&app);
+            super::cancel_click_point_pick_inner(&app);
             return false;
         }
 
@@ -527,8 +527,8 @@ mod platform {
 
             let continue_picking = false; // shift-check not easily available from event tap
             let _ = app.emit(
-                "sequence-point-picked",
-                SequencePointPickedPayload {
+                "click-point-picked",
+                ClickPointPickedPayload {
                     x,
                     y,
                     continue_picking,
@@ -539,7 +539,7 @@ mod platform {
             if let Some(bounds) = current_virtual_screen_rect() {
                 let offset = VirtualScreenRect::new(x, y, 1, 1).offset_from(bounds);
                 let _ = app.emit(
-                    "sequence-pick-cursor",
+                    "click-pick-cursor",
                     serde_json::json!({ "x": offset.left, "y": offset.top }),
                 );
             }
@@ -553,13 +553,13 @@ mod platform {
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
-pub fn start_sequence_point_pick_inner(app: AppHandle) -> Result<(), String> {
+pub fn start_click_point_pick_inner(app: AppHandle) -> Result<(), String> {
     crate::custom_stop_zone_picker::cancel_custom_stop_zone_pick_inner(&app);
 
     {
         let mut runtime = picker().lock().unwrap();
         if runtime.active {
-            crate::overlay::show_sequence_pick_overlay(&app)?;
+            crate::overlay::show_click_point_pick_overlay(&app).map_err(|e| e.to_string())?;
             return Ok(());
         }
 
@@ -570,10 +570,10 @@ pub fn start_sequence_point_pick_inner(app: AppHandle) -> Result<(), String> {
     }
 
     app.state::<ClickerState>()
-        .sequence_pick_active
+        .click_point_pick_active
         .store(true, std::sync::atomic::Ordering::SeqCst);
 
-    crate::overlay::show_sequence_pick_overlay(&app)?;
+    crate::overlay::show_click_point_pick_overlay(&app).map_err(|e| e.to_string())?;
 
     #[cfg(target_os = "macos")]
     {
@@ -601,7 +601,7 @@ pub fn start_sequence_point_pick_inner(app: AppHandle) -> Result<(), String> {
                         if let Some(bounds) = current_virtual_screen_rect() {
                             let offset = VirtualScreenRect::new(x, y, 1, 1).offset_from(bounds);
                             let _ = app_handle.emit(
-                                "sequence-pick-cursor",
+                                "click-pick-cursor",
                                 serde_json::json!({ "x": offset.left, "y": offset.top }),
                             );
                         }
@@ -619,7 +619,7 @@ pub fn start_sequence_point_pick_inner(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-pub fn cancel_sequence_point_pick_inner(app: &AppHandle) {
+pub fn cancel_click_point_pick_inner(app: &AppHandle) {
     let app_opt = platform::stop_hooks(true);
     if let Some(a) = app_opt.or(Some(app.clone())) {
         let _ = crate::overlay::hide_overlay(a);

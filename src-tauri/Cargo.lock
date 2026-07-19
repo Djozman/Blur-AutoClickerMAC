@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "BlurAutoClicker"
-version = "3.8.2"
+version = "3.9.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -31,6 +31,7 @@ dependencies = [
  "tauri-plugin-store",
  "tauri-plugin-updater",
  "tempfile",
+ "thiserror 2.0.18",
  "tokio",
  "walkdir",
  "windows-sys 0.61.2",

@@ -89,5 +89,4 @@ pub fn on_hide(_app: &AppHandle) {
     trim_webview_processes();
 }
 
-pub fn on_show(_app: &AppHandle) {
-}
+pub fn on_show(_app: &AppHandle) {}

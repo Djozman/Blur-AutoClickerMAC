@@ -8,7 +8,7 @@
 // stop or pause. The UI still lets users configure entries; they just won't
 // match anything on macOS until a native implementation is added.
 
-use super::{ClickerConfig, ProcessListBehavior};
+use super::ClickerConfig;
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,7 +45,7 @@ pub fn list_running_processes() -> Vec<ProcessInfo> {
 /// Checks the process list against the foreground process. Always returns
 /// `None` on macOS (no-op), so the clicker never stops or pauses due to the
 /// process list.
-pub fn check_process_list(_config: &ClickerConfig) -> Option<ProcessListBehavior> {
+pub fn check_process_list(_config: &ClickerConfig) -> Option<()> {
     None
 }
 

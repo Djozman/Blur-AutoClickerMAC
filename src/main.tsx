@@ -6,7 +6,6 @@ import App from "./App.tsx";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { installGlobalDiagnostics } from "./diagnostics";
 
-// This is to Disable the Right Click Menu
 document.addEventListener("contextmenu", (e) => e.preventDefault());
 
 window.addEventListener(

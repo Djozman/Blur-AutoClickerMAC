@@ -1,6 +1,6 @@
 [package]
 name = "BlurAutoClicker"
-version = "3.8.2"
+version = "3.9.0"
 description = "BlurAutoClicker - accuracy and performance focused auto clicker for macOS."
 authors = ["Blur009", "Djozman"]
 license = "GPL-3.0"
@@ -20,6 +20,7 @@ windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_UI_In
   "Win32_System_Threading", "Win32_Security", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_UI_HiDpi", "Win32_System_Diagnostics_ToolHelp", "Win32_System_ProcessStatus", "Win32_UI_Shell"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1.0", features = ["derive"] }
+thiserror = "2"
 reqwest = { version = "0.13.4", features = ["json"] }
 tauri-plugin-opener = "2.0"
 tauri-plugin-log = "2.0"
@@ -38,7 +39,7 @@ sha2 = "0.11"
 hex = "0.4"
 dirs = "6.0.0"
 windows-targets = "0.53.5"
-image = { version = "0.25", default-features = false, features = ["png"] }
+image = { version = "0.25", default-features = false, features = ["png", "ico"] }
 base64 = "0.22"
 chrono = "0.4"
 walkdir = "2"
