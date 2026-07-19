@@ -266,7 +266,6 @@ fn truncate_title_for_display(title: &str) -> String {
     }
 }
 
-
 pub fn get_foreground_process_name() -> Option<String> {
     let hwnd = unsafe { GetForegroundWindow() };
     if hwnd.is_null() {
@@ -294,37 +293,37 @@ pub fn list_running_processes() -> Vec<ProcessInfo> {
             if !exe_name.is_empty() && exe_name.ends_with(".exe") {
                 let lower_name = exe_name.to_lowercase();
                 unique_processes
-                .entry(lower_name)
-                .or_insert(entry.th32ProcessID);
-        }
-        if unsafe { Process32NextW(snapshot, &mut entry) } == 0 {
-            break;
+                    .entry(lower_name)
+                    .or_insert(entry.th32ProcessID);
+            }
+            if unsafe { Process32NextW(snapshot, &mut entry) } == 0 {
+                break;
+            }
         }
     }
-}
-unsafe { CloseHandle(snapshot) };
-let pid_title_map = build_pid_title_map();
+    unsafe { CloseHandle(snapshot) };
+    let pid_title_map = build_pid_title_map();
 
-let mut result: Vec<ProcessInfo> = unique_processes
-.into_iter()
-.filter_map(|(name, pid)| {
-    let window_title = pid_title_map.get(&pid)?;
-    let display_name = truncate_title_for_display(window_title);
-    let icon_base64 = get_icon_for_process(&name, pid);
-    Some(ProcessInfo {
-        name,
-        display_name,
-        pid,
-        icon_base64,
-    })
-})
-.collect();
-result.sort_by(|a, b| {
-    a.display_name
-    .to_lowercase()
-    .cmp(&b.display_name.to_lowercase())
-});
-result
+    let mut result: Vec<ProcessInfo> = unique_processes
+        .into_iter()
+        .filter_map(|(name, pid)| {
+            let window_title = pid_title_map.get(&pid)?;
+            let display_name = truncate_title_for_display(window_title);
+            let icon_base64 = get_icon_for_process(&name, pid);
+            Some(ProcessInfo {
+                name,
+                display_name,
+                pid,
+                icon_base64,
+            })
+        })
+        .collect();
+    result.sort_by(|a, b| {
+        a.display_name
+            .to_lowercase()
+            .cmp(&b.display_name.to_lowercase())
+    });
+    result
 }
 
 pub fn check_process_list(config: &ClickerConfig) -> Option<super::ProcessListBehavior> {
@@ -333,27 +332,27 @@ pub fn check_process_list(config: &ClickerConfig) -> Option<super::ProcessListBe
     }
     let current = get_foreground_process_name()?.to_lowercase();
     let matching_entry = config
-    .process_list_entries
-    .iter()
-    .find(|e| e.enabled && e.name == current);
-let is_in_list = matching_entry.is_some();
-let triggered = match config.process_list_mode {
-    super::ProcessListMode::Whitelist => !is_in_list,
-    super::ProcessListMode::Blacklist => is_in_list,
-};
-if triggered {
-    let behavior = match matching_entry {
-        Some(entry) => entry.behavior,
-        None => super::ProcessListBehavior::Stop,
+        .process_list_entries
+        .iter()
+        .find(|e| e.enabled && e.name == current);
+    let is_in_list = matching_entry.is_some();
+    let triggered = match config.process_list_mode {
+        super::ProcessListMode::Whitelist => !is_in_list,
+        super::ProcessListMode::Blacklist => is_in_list,
     };
-    Some(behavior)
-} else {
-    None
-}
+    if triggered {
+        let behavior = match matching_entry {
+            Some(entry) => entry.behavior,
+            None => super::ProcessListBehavior::Stop,
+        };
+        Some(behavior)
+    } else {
+        None
+    }
 }
 
 const TASK_SWITCHER_CLASSES: &[&str] =
-&["TaskSwitcherWnd", "TaskViewWindow", "WindowsSwitchWindow"];
+    &["TaskSwitcherWnd", "TaskViewWindow", "WindowsSwitchWindow"];
 
 pub fn is_task_switcher_active() -> bool {
     let hwnd = unsafe { GetForegroundWindow() };
@@ -363,8 +362,8 @@ pub fn is_task_switcher_active() -> bool {
         if len > 0 {
             let class_name = String::from_utf16_lossy(&buf[..len as usize]);
             if TASK_SWITCHER_CLASSES
-            .iter()
-            .any(|&c| class_name == c || class_name.starts_with(c))
+                .iter()
+                .any(|&c| class_name == c || class_name.starts_with(c))
             {
                 return true;
             }
@@ -373,7 +372,7 @@ pub fn is_task_switcher_active() -> bool {
             }
         }
     }
-    
+
     let alt_down = unsafe { (GetAsyncKeyState(VK_MENU as i32) as u16 & 0x8000) != 0 };
     let tab_down = unsafe { (GetAsyncKeyState(VK_TAB as i32) as u16 & 0x8000) != 0 };
     alt_down && tab_down

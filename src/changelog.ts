@@ -9,7 +9,7 @@ export interface ChangelogEntry {
   sections: ChangelogSection[];
 }
 
-import raw from '../CHANGELOG.md?raw';
+import raw from "../CHANGELOG.md?raw";
 
 function parseChangelog(raw: string): ChangelogEntry[] {
   const entries: ChangelogEntry[] = [];
@@ -31,7 +31,7 @@ function parseChangelog(raw: string): ChangelogEntry[] {
       const heading = sectionLine[1];
       const items: string[] = [];
 
-      for (const line of sb.split('\n')) {
+      for (const line of sb.split("\n")) {
         const itemMatch = line.match(/^(\d+\.|-)\s(.+)/);
         if (itemMatch) items.push(itemMatch[2]);
       }

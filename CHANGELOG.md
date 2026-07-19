@@ -1,15 +1,64 @@
+# v3.9.0 - 18.07.2026 (d.m.y)
+## New
+- Added Hold mode in duty cycle since people couldn't figure out that 100% is the same as Holding down the mouse continuously.
+- Added slider for window opacity in the appearance settings.
+- Added Keybind section in settings.
+- Added Keybinds for switching between all pages.(1 to 5 for simple, advanced, zones, click points, settings)
+- Added the ability to customize each page individually in the appearance settings.
+- Added 'Stop when Complete' toggle to Sequence clicking (which has been re-named to Click Points).
+- Added the ability to have multiple custom stop zones.
+- Added a radius to the click points that randomizes the click position within that radius.
+- Added Task-bar icon customization in the appearance settings. The Icon now follows the theme color, and accent color on activation. You can toggle all of these options in the settings.
+- Added Remember window position toggle (Settings → Behaviour → Startup) On by default.
+- Added Status bar at the bottom of the window to show the current status of the clicker, and the reason for stopping if it is stopped.
+## Changed
+- Overhauled Advanced panel.
+- Settings panel now has a side menu for easier navigation and organization of settings.
+- Font switch from DM Sans to RobotoFlex to support tabular enums (e.g. numbers that don't shift when changing values).
+- Lowered maximum double click CPS from 50 to 10.
+- Click limit maximum increased from 10mil to 100mil.
+- Changed scroll behaviour for number inputs to be: shift = 5, ctrl = 25, shift + ctrl = 100.
+- Made settings icon 1px bigger because size matters and the settings icon was feeling very insecure about its 1 pixel size disadvantage. I hope it feels better now. 
+- Moved Process (white/black)list to the settings.
+- Overhauled Custom Stop Zones.
+- Zones overlay now shows a different color for disabled state of zones
+- Replaced On/Off toggles with switches in the settings panel and gave them an animation cuz im fancy like that.
+- Added animations to some ui elements and icons
+## Fixed
+- Fixed alt menu opening when the autoclicker is launched while tabbed into another app.
+- Fixed simple tab button in the title bar showing the wrong background color when a custom accent color is selected.
+- Fixed click points picker overlay persisting when the click points are toggled off while the overlay is open.
+- Fixed click speed not being reached at high CPS. Now it turns out that i fixed it somehow on accident, but im just going to say that i fixed it on purpose because i am a genius and i am very smart and very good at programming.
+- Window position and size appearing in the wrong location on launch for about 1 second, should now just appear normally.
+
+# v3.8.3 - 28.06.2026 (d.m.y)
+## Changed
+- Changed max Process list title length to 35 characters to hopefully prevent ui clipping.
+## Fixed
+- Fixed stop reason falsely showing up when switching from settings to another panel.
+- Fixed behaviour of the cps input field to be more gooder.
+- Fixed title bar not having the background image blur effect applied.
+- Hopefully fixed application startup crash when RTSS is running.
+
 # v3.8.2 - 25.06.2026 (d.m.y)
 ## New
-- Verbose logging and crash reporting. Logs live at the bottom of the Settings panel (local only); use the Export button to bundle them into a single zip.
+- Added verbose logging and crash reporting. This should make debugging much easier. You can find the logs in the settings panel all the way at the bottom. For now they are local only, hence the Export button that combines all your logs into a single zip.
 ## Changed
+- Right aligned Items in Limits section in advanced panel. (ik, big change)
+## Fixed
+- Fixed program sometimes launching with a blank window.
+- Fixed program crash when clicking into Zones panel.
+## Info
+as for some information for any devs. I have added a new command 'npm run check' and 'npm run fix' which will check and try to fix most common issues. Make sure to check out package.json for the commands. I really recommend running 'npm run check' before any sort of commit as it will make everyone's life easier when code is formatted consistently.
+
+# v3.8.1 - 23.06.2026 (d.m.y)
+## Changed
+- Updated wording for extended click speed limit description.
+- Updated wording on task switcher -> Alt+Tab
 - Hotkey field now accepts modifier keys, ESC and Return.
 - Keyboard Clicker now accepts modifier keys, ESC and Return.
-- Updated wording for the extended click-speed limit description.
-- Updated wording for the task switcher option.
-- Right-aligned the items in the Limits section of the advanced panel.
 ## Fixed
-- Fixed the app sometimes launching with a blank window.
-- Fixed a crash when opening the Zones panel.
+- Fixed mouse cursor behaving erratically while application is running.
 
 # v3.8.0 - 21.06.2026 (d.m.y)
 ## New

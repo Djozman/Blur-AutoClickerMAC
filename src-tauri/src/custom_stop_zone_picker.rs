@@ -496,12 +496,12 @@ mod platform {
 // ── Public API ─────────────────────────────────────────────────────────────────
 
 pub fn start_custom_stop_zone_pick_inner(app: AppHandle) -> Result<(), String> {
-    crate::sequence_picker::cancel_sequence_point_pick_inner(&app);
+    crate::click_point_picker::cancel_click_point_pick_inner(&app);
 
     {
         let mut runtime = picker().lock().unwrap();
         if runtime.active {
-            crate::overlay::show_custom_stop_zone_pick_overlay(&app)?;
+            crate::overlay::show_custom_stop_zone_pick_overlay(&app).map_err(|e| e.to_string())?;
             return Ok(());
         }
         runtime.active = true;
@@ -514,7 +514,7 @@ pub fn start_custom_stop_zone_pick_inner(app: AppHandle) -> Result<(), String> {
         .custom_stop_zone_pick_active
         .store(true, Ordering::SeqCst);
 
-    crate::overlay::show_custom_stop_zone_pick_overlay(&app)?;
+    crate::overlay::show_custom_stop_zone_pick_overlay(&app).map_err(|e| e.to_string())?;
 
     #[cfg(target_os = "macos")]
     {
@@ -551,6 +551,6 @@ fn finish_custom_stop_zone_pick(rect: StopZoneRect) {
     let app = platform::stop_hooks(true);
     if let Some(app) = app {
         let _ = app.emit("custom-stop-zone-picked", rect);
-        let _ = crate::overlay::end_custom_stop_zone_pick_overlay(&app);
+        let _ = crate::overlay::hide_custom_stop_zone_pick_overlay(&app);
     }
 }

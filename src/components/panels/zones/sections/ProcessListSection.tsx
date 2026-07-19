@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { Settings } from "../../../store";
-import type { ProcessListBehavior, ProcessListEntry } from "../../../settingsSchema";
+import type { Settings } from "../../../../store";
+import type { ProcessListEntry } from "../../../../settingsSchema";
 
 import {
   Disableable,
   ToggleBtn,
   CardDivider,
-  InfoIcon,
-} from "../advanced/shared";
+} from "../../advanced/sections/shared";
 
 interface ProcessInfo {
   name: string;
@@ -23,11 +22,7 @@ interface Props {
   showInfo: boolean;
 }
 
-export default function ProcessListSection({
-  settings,
-  update,
-  showInfo,
-}: Props) {
+export default function ProcessListSection({ settings, update }: Props) {
   const [processes, setProcesses] = useState<ProcessInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -68,7 +63,6 @@ export default function ProcessListSection({
           ...settings.processListEntries,
           {
             name,
-            behavior: "stop" as ProcessListBehavior,
             enabled: true,
           } as ProcessListEntry,
         ]
@@ -76,16 +70,7 @@ export default function ProcessListSection({
     update({ processListEntries: next });
   };
 
-  const toggleEntryBehavior = (name: string, behavior: ProcessListBehavior) => {
-    const next = settings.processListEntries.map((e) =>
-      e.name === name ? { ...e, behavior } : e,
-    );
-    update({ processListEntries: next });
-  };
-
-  const entryMap = new Map(
-    settings.processListEntries.map((e) => [e.name, e]),
-  );
+  const entryMap = new Map(settings.processListEntries.map((e) => [e.name, e]));
   const matchesSearch = (p: ProcessInfo) =>
     searchQuery.length < 1 ||
     p.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -108,9 +93,6 @@ export default function ProcessListSection({
             gap: "0.5rem",
           }}
         >
-          {showInfo ? (
-            <InfoIcon text="Pause clicking when certain applications are focused. Checked processes are whitelisted or blacklisted depending on the mode selected." />
-          ) : null}
           <span className="adv-card-title">Process List</span>
         </div>
         <ToggleBtn
@@ -119,6 +101,10 @@ export default function ProcessListSection({
         />
       </div>
       <CardDivider />
+      <div className="adv-card-desc">
+        Stop clicking when specific applications are in focus. Combine with
+        whitelist or blacklist mode.
+      </div>
       <Disableable
         enabled={settings.processListEnabled}
         disabledReason="Enable Process List to manage application rules."
@@ -148,22 +134,27 @@ export default function ProcessListSection({
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        {settings.processListMode === "whitelist" && settings.processListEntries.length === 0 ? (
+        {settings.processListMode === "whitelist" &&
+        settings.processListEntries.length === 0 ? (
           <div className="adv-whitelist-warning">
-            Whitelist mode is active with no applications selected. Clicking will be blocked everywhere.
+            Whitelist mode is active with no applications selected. Clicking
+            will be blocked everywhere.
           </div>
         ) : null}
         <div className="adv-process-list">
           {loading ? (
-            <div className="adv-sequence-empty">
-              Refreshing...
-            </div>
+            <div className="adv-click-points-empty">Refreshing...</div>
           ) : processes.length === 0 ? (
-            <div className="adv-sequence-empty">
+            <div className="adv-click-points-empty">
               No processes found. Click Refresh.
             </div>
-          ) : searchQuery.length >= 1 && checkedProcesses.length === 0 && uncheckedProcesses.length === 0 ? (
-            <div className="adv-sequence-empty" style={{ textAlign: "center", padding: "1rem" }}>
+          ) : searchQuery.length >= 1 &&
+            checkedProcesses.length === 0 &&
+            uncheckedProcesses.length === 0 ? (
+            <div
+              className="adv-click-points-empty"
+              style={{ textAlign: "center", padding: "1rem" }}
+            >
               no process named "{searchQuery}"
             </div>
           ) : (
@@ -174,11 +165,16 @@ export default function ProcessListSection({
                   proc={proc}
                   entry={entryMap.get(proc.name)!}
                   onToggleEntry={toggleEntry}
-                  onToggleBehavior={toggleEntryBehavior}
                 />
               ))}
               {checkedProcesses.length > 0 && uncheckedProcesses.length > 0 && (
-                <div style={{ height: 1, background: "var(--border-subtle)", margin: "0.25rem 0" }} />
+                <div
+                  style={{
+                    height: 1,
+                    background: "var(--border-subtle)",
+                    margin: "0.25rem 0",
+                  }}
+                />
               )}
               {uncheckedProcesses.map((proc) => (
                 <ProcessRow
@@ -186,7 +182,6 @@ export default function ProcessListSection({
                   proc={proc}
                   entry={undefined}
                   onToggleEntry={toggleEntry}
-                  onToggleBehavior={toggleEntryBehavior}
                 />
               ))}
             </>
@@ -201,16 +196,14 @@ function ProcessRow({
   proc,
   entry,
   onToggleEntry,
-  onToggleBehavior,
 }: {
   proc: ProcessInfo;
   entry: ProcessListEntry | undefined;
   onToggleEntry: (name: string, checked: boolean) => void;
-  onToggleBehavior: (name: string, behavior: ProcessListBehavior) => void;
 }) {
   const isChecked = entry?.enabled ?? false;
   return (
-    <label className="adv-sequence-item">
+    <label className="adv-click-points-item">
       <input
         type="checkbox"
         className="adv-proc-checkbox"
@@ -222,24 +215,6 @@ function ProcessRow({
       ) : null}
       <span className="adv-proc-name">{proc.displayName}</span>
       <span className="adv-proc-exe">{proc.name}</span>
-      <div className={`adv-proc-behavior-toggle ${isChecked ? "" : "disabled"}`}>
-        <button
-          type="button"
-          className={`adv-toggle-btn adv-toggle-off ${entry?.behavior === "stop" ? "active" : ""}`}
-          disabled={!isChecked}
-          onClick={() => isChecked && onToggleBehavior(proc.name, "stop")}
-        >
-          Stop
-        </button>
-        <button
-          type="button"
-          className={`adv-toggle-btn adv-toggle-on ${entry?.behavior === "pause" ? "active" : ""}`}
-          disabled={!isChecked}
-          onClick={() => isChecked && onToggleBehavior(proc.name, "pause")}
-        >
-          Pause
-        </button>
-      </div>
     </label>
   );
 }

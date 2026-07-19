@@ -50,12 +50,12 @@ const MODIFIER_CODE_MAIN_KEY_MAP: Record<string, string> = {
 const SHIFTED_SYMBOL_BASE_MAP: Record<string, string> = {
   "?": "/",
   ":": ";",
-  "\"": "'",
+  '"': "'",
   "{": "[",
   "}": "]",
   "|": "\\",
   "+": "=",
-  "_": "-",
+  _: "-",
   "~": "`",
   ">": "<",
 };
@@ -397,7 +397,8 @@ function mainKeyFromKey(key: string): string | null {
     normalizedNamedKey ??
     normalizeNumpadToken(key) ??
     normalizeMouseToken(key) ??
-    (SHIFTED_SYMBOL_BASE_MAP[key] ?? (key.length === 1 ? key.toLowerCase() : null))
+    SHIFTED_SYMBOL_BASE_MAP[key] ??
+    (key.length === 1 ? key.toLowerCase() : null)
   );
 }
 
@@ -440,7 +441,11 @@ function displayTokenFromStoredValue(
   }
 
   if (NUMPAD_CODE_MAP[trimmed]) {
-    return displayTokenFromStoredValue(NUMPAD_CODE_MAP[trimmed], layoutMap, labels);
+    return displayTokenFromStoredValue(
+      NUMPAD_CODE_MAP[trimmed],
+      layoutMap,
+      labels,
+    );
   }
 
   const lower = trimmed.toLowerCase();
@@ -542,9 +547,11 @@ function normalizeStoredMainKey(
 
 export async function getKeyboardLayoutMap(): Promise<LayoutMapLike | null> {
   if (!layoutMapPromise) {
-    const keyboard = (navigator as Navigator & {
-      keyboard?: { getLayoutMap?: () => Promise<LayoutMapLike> };
-    }).keyboard;
+    const keyboard = (
+      navigator as Navigator & {
+        keyboard?: { getLayoutMap?: () => Promise<LayoutMapLike> };
+      }
+    ).keyboard;
 
     layoutMapPromise = keyboard?.getLayoutMap
       ? keyboard.getLayoutMap().catch(() => null)
@@ -554,12 +561,16 @@ export async function getKeyboardLayoutMap(): Promise<LayoutMapLike | null> {
   return layoutMapPromise;
 }
 
-export async function canonicalizeHotkeyForBackend(value: string): Promise<string> {
+export async function canonicalizeHotkeyForBackend(
+  value: string,
+): Promise<string> {
   const layoutMap = await getKeyboardLayoutMap();
   return canonicalizeHotkeyString(value, layoutMap);
 }
 
-export function captureModifierHotkey(event: KeyboardCaptureEvent): string | null {
+export function captureModifierHotkey(
+  event: KeyboardCaptureEvent,
+): string | null {
   if (event.code) {
     const codeMapped = MODIFIER_CODE_MAIN_KEY_MAP[event.code];
     if (codeMapped) return codeMapped;
@@ -585,8 +596,9 @@ export function captureHotkey(event: KeyboardCaptureEvent): string | null {
   if (lowerKey === "escape" || event.code === "Escape") return null;
 
   const mainKey =
-    (event.code ? mainKeyFromCode(event.code, event.key, event.location) : null) ??
-    mainKeyFromKey(event.key);
+    (event.code
+      ? mainKeyFromCode(event.code, event.key, event.location)
+      : null) ?? mainKeyFromKey(event.key);
 
   if (!mainKey) return null;
 
@@ -669,7 +681,7 @@ function canonicalizeHotkeyString(
 export function hotkeyMainKey(hotkey: string): string | null {
   if (!hotkey) return null;
   const parts = hotkey.split("+").map((p) => p.trim().toLowerCase());
-  return parts.length > 0 ? parts[parts.length - 1] ?? null : null;
+  return parts.length > 0 ? (parts[parts.length - 1] ?? null) : null;
 }
 
 export function hotkeyModifiers(hotkey: string): string[] {
@@ -688,7 +700,12 @@ export function conflictsWithAutoPressKey(
   const kbKey = keyboardKey.toLowerCase();
   if (!mainKey || mainKey !== kbKey) return false;
   if (modifiers.length === 0) return true;
-  if (keyboardKeyCaseIsUpper && modifiers.length === 1 && modifiers[0] === "shift") return true;
+  if (
+    keyboardKeyCaseIsUpper &&
+    modifiers.length === 1 &&
+    modifiers[0] === "shift"
+  )
+    return true;
   return false;
 }
 

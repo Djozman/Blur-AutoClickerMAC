@@ -4,6 +4,9 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use crate::error::poisoned_inner;
+use crate::error::AppResult;
+
 static STATS_LOCK: Mutex<()> = Mutex::new(());
 
 const MAX_NORMAL_RUNS: usize = 100;
@@ -55,13 +58,12 @@ fn round2(v: f64) -> f64 {
 
 // -- CSV read/write --
 
-fn read_all_runs() -> Result<Vec<RunRecord>, String> {
+fn read_all_runs() -> AppResult<Vec<RunRecord>> {
     let path = stats_file_path();
     if !path.exists() {
         return Ok(Vec::new());
     }
-    let contents =
-        fs::read_to_string(&path).map_err(|e| format!("Failed to read stats file: {}", e))?;
+    let contents = fs::read_to_string(&path)?;
 
     let mut runs = Vec::new();
 
@@ -101,26 +103,23 @@ fn read_all_runs() -> Result<Vec<RunRecord>, String> {
     Ok(runs)
 }
 
-fn write_all_runs(runs: &[RunRecord]) -> Result<(), String> {
+fn write_all_runs(runs: &[RunRecord]) -> AppResult<()> {
     let path = stats_file_path();
 
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("Failed to create stats dir: {}", e))?;
+        fs::create_dir_all(parent)?;
     }
 
-    let mut file =
-        fs::File::create(&path).map_err(|e| format!("Failed to open stats file: {}", e))?;
+    let mut file = fs::File::create(&path)?;
 
-    writeln!(file, "id,clicks,time_secs,avg_cpu,runs")
-        .map_err(|e| format!("Failed to write header: {}", e))?;
+    writeln!(file, "id,clicks,time_secs,avg_cpu,runs")?;
 
     for r in runs {
         writeln!(
             file,
             "{},{},{},{},{}",
             r.id, r.clicks, r.time_secs, r.avg_cpu, r.runs
-        )
-        .map_err(|e| format!("Failed to write run: {}", e))?;
+        )?;
     }
 
     Ok(())
@@ -180,7 +179,7 @@ fn compact_runs(runs: &mut Vec<RunRecord>) {
 }
 
 pub fn record_run(click_count: i64, elapsed_secs: f64, avg_cpu: f64) {
-    let _lock = STATS_LOCK.lock().unwrap();
+    let _lock = STATS_LOCK.lock().unwrap_or_else(poisoned_inner);
 
     let mut runs = match read_all_runs() {
         Ok(r) => r,
@@ -206,8 +205,8 @@ pub fn record_run(click_count: i64, elapsed_secs: f64, avg_cpu: f64) {
     }
 }
 
-pub fn get_stats() -> Result<CumulativeStats, String> {
-    let _lock = STATS_LOCK.lock().unwrap();
+pub fn get_stats() -> AppResult<CumulativeStats> {
+    let _lock = STATS_LOCK.lock().unwrap_or_else(poisoned_inner);
 
     let runs = read_all_runs()?;
 
@@ -239,8 +238,8 @@ pub fn get_stats() -> Result<CumulativeStats, String> {
     })
 }
 
-pub fn reset_stats() -> Result<CumulativeStats, String> {
-    let _lock = STATS_LOCK.lock().unwrap();
+pub fn reset_stats() -> AppResult<CumulativeStats> {
+    let _lock = STATS_LOCK.lock().unwrap_or_else(poisoned_inner);
     let path = stats_file_path();
 
     if path.exists() {

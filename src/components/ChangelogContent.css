@@ -7,16 +7,16 @@
 }
 
 .changelog-content code {
-  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
   font-size: 0.65rem;
   padding: 0.0625rem 0.25rem;
   background: var(--bg-elevated);
-  border-radius: 0.25rem;
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
 }
 
 .changelog-content a {
-  color: var(--accent-green-strong);
+  color: var(--accent-strong);
   text-decoration: none;
 }
 
@@ -87,7 +87,7 @@
 }
 
 .changelog-item::before {
-  content: '\2013';
+  content: "\2013";
   position: absolute;
   left: 0;
   color: var(--text-dim);
@@ -100,7 +100,7 @@
 }
 
 .changelog-collapsed::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: 0;
   left: 0;
@@ -125,7 +125,10 @@
   border-radius: var(--radius-md);
   color: var(--text-muted);
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .changelog-expand-btn:hover {

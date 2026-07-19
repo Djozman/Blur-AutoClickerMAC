@@ -1,5 +1,6 @@
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
+import { error } from "@tauri-apps/plugin-log";
 import { useState } from "react";
 
 import UnavailableReason from "./UnavailableReason";
@@ -48,7 +49,9 @@ export default function UpdateBanner({
       setStage("restart-required");
       setStatusText("Update installed. Restart to apply it.");
     } catch (err) {
-      console.error("Failed to install update:", err);
+      error(
+        JSON.stringify({ source: "Updatebanner.install", error: String(err) }),
+      );
       setStage("error");
       setStatusText("Update install failed.");
     }
@@ -58,7 +61,9 @@ export default function UpdateBanner({
     try {
       await relaunch();
     } catch (err) {
-      console.error("Failed to relaunch app:", err);
+      error(
+        JSON.stringify({ source: "Updatebanner.relaunch", error: String(err) }),
+      );
       setStage("error");
       setStatusText("Restart failed. Please reopen the app manually.");
     }
@@ -95,9 +100,7 @@ export default function UpdateBanner({
             onClick={handleUpdate}
             disabled={stage === "installing"}
           >
-            {stage === "installing"
-              ? "Installing..."
-              : "Download and Install"}
+            {stage === "installing" ? "Installing..." : "Download and Install"}
           </button>
         </UnavailableReason>
       )}
