@@ -14,7 +14,7 @@ pub async fn check_for_updates(app: AppHandle) -> Result<Option<CheckUpdateResul
         .version
         .clone()
         .unwrap_or_else(|| "0.0.0".into());
-    let url = "https://api.github.com/repos/Blur009/Blur-AutoClicker/releases/latest";
+    let url = "https://api.github.com/repos/Djozman/Blur-AutoClickerMAC/releases/latest";
     let client = reqwest::Client::new();
 
     let response = client
@@ -22,7 +22,9 @@ pub async fn check_for_updates(app: AppHandle) -> Result<Option<CheckUpdateResul
         .header(USER_AGENT, "BlurAutoClicker")
         .send()
         .await
-        .map_err(|e| format!("Network error: {}", e))?;
+        .map_err(|e| format!("Network error: {}", e))?
+        .error_for_status()
+        .map_err(|e| format!("HTTP error: {}", e))?;
 
     if response.status().is_success() {
         let release: GithubRelease = response

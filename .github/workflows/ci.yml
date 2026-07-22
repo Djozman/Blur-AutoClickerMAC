@@ -4,15 +4,39 @@ on:
   push:
     branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
+
+permissions:
+  contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build (${{ matrix.target }})
+  frontend:
+    name: Frontend (lint + type check + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check and build
+        run: npm run frontend:build
+
+  rust:
+    name: Rust (${{ matrix.target }}) (fmt + check + test)
     runs-on: macos-latest
     timeout-minutes: 60
     strategy:
@@ -20,38 +44,43 @@ jobs:
         include:
           - target: aarch64-apple-darwin
           - target: x86_64-apple-darwin
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
+          cache: npm
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
           components: rustfmt, clippy
 
-      - name: Install dependencies
-        run: |
-          rm -f package-lock.json
-          npm install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
 
-      - name: Check formatting
-        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+      - name: Install dependencies
+        run: npm install
+
+      - name: Format
+        working-directory: src-tauri
+        run: cargo fmt --check
+
+      - name: Check
+        working-directory: src-tauri
+        run: cargo check --locked --target ${{ matrix.target }}
+
+      - name: Test
+        working-directory: src-tauri
+        run: cargo test --locked
 
       - name: Build frontend
-        run: npm run build
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run frontend:build
 
-      - name: Build Tauri (Rust check)
-        run: cargo build --manifest-path src-tauri/Cargo.toml --target ${{ matrix.target }}
+      - name: Build Tauri
+        run: cargo build --manifest-path src-tauri/Cargo.toml --release --target ${{ matrix.target }}
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}

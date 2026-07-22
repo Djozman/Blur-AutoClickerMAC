@@ -1,6 +1,6 @@
 [package]
 name = "BlurAutoClicker"
-version = "3.7.0"
+version = "3.9.0"
 description = "BlurAutoClicker - accuracy and performance focused auto clicker for macOS."
 authors = ["Blur009", "Djozman"]
 license = "GPL-3.0"
@@ -15,24 +15,45 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
-tauri = { version = "2.0", features = ["tray-icon", "image-ico", "macos-private-api"] }
-windows-sys = { version = "0.52", features = ["Win32_Foundation", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_Security", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_UI_HiDpi"] }
+tauri = { version = "2.0", features = ["protocol-asset", "tray-icon", "image-ico", "macos-private-api"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging",
+  "Win32_System_Threading", "Win32_Security", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_UI_HiDpi", "Win32_System_Diagnostics_ToolHelp", "Win32_System_ProcessStatus", "Win32_UI_Shell"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1.0", features = ["derive"] }
-reqwest = { version = "0.12", features = ["json"] }
+thiserror = "2"
+reqwest = { version = "0.13.4", features = ["json"] }
 tauri-plugin-opener = "2.0"
 tauri-plugin-log = "2.0"
+tauri-plugin-fs = "2"
 tauri-plugin-process = "2.3.1"
 tauri-plugin-store = "2"
 tauri-plugin-global-shortcut = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-persisted-scope = { version = "2", features = ["protocol-asset"] }
 log = "0.4"
 serde_json = "1.0"
 raw-window-handle = "0.6.2"
 tauri-plugin-updater = "2.10.0"
-hmac = "0.12"
-sha2 = "0.10"
+hmac = "0.13.0"
+sha2 = "0.11"
 hex = "0.4"
 dirs = "6.0.0"
+windows-targets = "0.53.5"
+image = { version = "0.25", default-features = false, features = ["png", "ico"] }
+base64 = "0.22"
+chrono = "0.4"
+walkdir = "2"
+zip = "2.2.0"
+open = "5"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.56"
+
+[features]
+crashpad = []
+
+[dev-dependencies]
+tempfile = "3"
 
 [profile.release]
 strip = true

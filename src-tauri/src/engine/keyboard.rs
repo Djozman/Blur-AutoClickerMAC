@@ -2,11 +2,14 @@
 use super::cycle::{execute_click_cycle, ClickCycleKind, ClickCyclePlan};
 #[cfg(target_os = "windows")]
 use super::worker::{sleep_interruptible, RunControl};
+#[cfg(target_os = "windows")]
+use super::AUTOCLICKER_EXTRA_INFO;
 
 // ── Windows implementation ────────────────────────────────────────────────────
 
 #[cfg(target_os = "windows")]
 mod platform {
+    use super::AUTOCLICKER_EXTRA_INFO;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
         GetKeyState, MapVirtualKeyW, SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT,
         KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, MAPVK_VK_TO_VSC_EX, VK_CAPITAL,
@@ -15,6 +18,11 @@ mod platform {
 
     #[inline]
     fn vk_to_scan(vk: u16) -> (u16, bool) {
+        // MAPVK_VK_TO_VSC_EX returns the scan code in the low byte and, for
+        // extended keys (arrows, Ins/Del/Home/End/PgUp/PgDn, numpad Enter, etc.),
+        // a 0xE0/0xE1 prefix byte in the high byte. A non-zero high byte means
+        // KEYEVENTF_EXTENDEDKEY must be set so apps that key off the extended
+        // bit (or use raw input) see the correct key.
         let raw = unsafe { MapVirtualKeyW(vk as u32, MAPVK_VK_TO_VSC_EX) };
         ((raw & 0xFF) as u16, (raw >> 8) != 0)
     }
@@ -31,7 +39,7 @@ mod platform {
                     wScan: scan,
                     dwFlags: flags | KEYEVENTF_SCANCODE | ext_flag,
                     time: 0,
-                    dwExtraInfo: 0,
+                    dwExtraInfo: AUTOCLICKER_EXTRA_INFO,
                 },
             },
         }
@@ -104,8 +112,13 @@ mod platform {
         uppercase: bool,
         plan: ClickCyclePlan,
         control: &RunControl,
+        should_abort: &dyn Fn() -> bool,
     ) {
         if count == 0 {
+            return;
+        }
+
+        if should_abort() {
             return;
         }
 
@@ -116,9 +129,12 @@ mod platform {
 
         let use_shift = should_hold_shift_for_case(vk, uppercase);
         let is_active = || control.is_active();
-        let mut sleep_for = |duration| sleep_interruptible(duration, None, control);
+        let mut sleep_for = |duration| sleep_interruptible(duration, control);
 
         for _ in 0..count {
+            if should_abort() {
+                return;
+            }
             if !execute_click_cycle(
                 plan,
                 &mut || send_key_down(vk, use_shift),
@@ -171,7 +187,35 @@ mod platform {
     }
 
     pub fn is_alphabetic_vk(vk: u16) -> bool {
-        (vk < 26) || (b'A' as u16..=b'Z' as u16).contains(&vk)
+        // Native macOS CGKeyCodes for the 26 ANSI letter keys (see letter_to_vk in hotkeys.rs).
+        matches!(
+            vk,
+            0x00 | 0x01
+                | 0x02
+                | 0x03
+                | 0x04
+                | 0x05
+                | 0x06
+                | 0x07
+                | 0x08
+                | 0x09
+                | 0x0B
+                | 0x0C
+                | 0x0D
+                | 0x0E
+                | 0x0F
+                | 0x10
+                | 0x11
+                | 0x1F
+                | 0x20
+                | 0x22
+                | 0x23
+                | 0x25
+                | 0x26
+                | 0x28
+                | 0x2D
+                | 0x2E
+        )
     }
 
     fn win_vk_to_mac_vk(win_vk: u16) -> u16 {
@@ -243,8 +287,12 @@ mod platform {
         uppercase: bool,
         plan: ClickCyclePlan,
         control: &RunControl,
+        should_abort: &dyn Fn() -> bool,
     ) {
         if count == 0 {
+            return;
+        }
+        if should_abort() {
             return;
         }
         if plan.kind == ClickCycleKind::Single && count > 1 && plan.first_hold_ms == 0 {
@@ -253,9 +301,12 @@ mod platform {
         }
         let needs_shift = uppercase && is_alphabetic_vk(vk);
         let is_active = || control.is_active();
-        let mut sleep_for = |duration| sleep_interruptible(duration, None, control);
+        let mut sleep_for = |duration| sleep_interruptible(duration, control);
 
         for _ in 0..count {
+            if should_abort() {
+                return;
+            }
             if !execute_click_cycle(
                 plan,
                 &mut || {

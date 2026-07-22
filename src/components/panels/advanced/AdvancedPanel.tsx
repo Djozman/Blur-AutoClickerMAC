@@ -1,80 +1,29 @@
+import "./sections/shared.css";
 import "./AdvancedPanel.css";
 import type { Settings } from "../../../store";
-import CadenceSection from "./CadenceSection";
-import DutyCycleSection from "./DutyCycleSection";
-import SpeedVariationSection from "./SpeedVariationSection";
-import DoubleClickSection from "./DoubleClickSection";
-import SequenceSection from "./SequenceSection";
-import LimitsSection from "./LimitsSection";
+import ClickSpeedSection from "./sections/ClickSpeedSection";
+import HotkeySection from "./sections/HotkeySection";
+import ClickerTypeSection from "./sections/ClickerTypeSection";
+import DutyCycleSection from "./sections/DutyCycleSection";
+import SpeedRandomizationSection from "./sections/SpeedRandomizationSection";
+import LimitsSection from "./sections/LimitsSection";
 
 interface Props {
   settings: Settings;
   update: (patch: Partial<Settings>) => void;
-  showInfo: boolean;
-  running: boolean;
-  activeSequenceIndex: number | null;
-  activeSequenceTick: number;
 }
 
-export default function AdvancedPanel({
-  settings,
-  update,
-  showInfo,
-  running,
-  activeSequenceIndex,
-  activeSequenceTick,
-}: Props) {
-  const isTallLayout = settings.advancedSequenceLayout === "tall";
-  const sequenceSection = (
-    <SequenceSection
-      settings={settings}
-      update={update}
-      showInfo={showInfo}
-      running={running}
-      activeSequenceIndex={activeSequenceIndex}
-      activeSequenceTick={activeSequenceTick}
-    />
-  );
-
-  const mainSections = (
-    <>
-      <CadenceSection settings={settings} update={update} showInfo={showInfo} />
-      <DutyCycleSection
-        settings={settings}
-        update={update}
-        showInfo={showInfo}
-      />
-      <LimitsSection settings={settings} update={update} showInfo={showInfo} />
-      <SpeedVariationSection
-        settings={settings}
-        update={update}
-        showInfo={showInfo}
-      />
-      <DoubleClickSection
-        settings={settings}
-        update={update}
-        showInfo={showInfo}
-      />
-    </>
-  );
-
+function AdvancedPanel({ settings, update }: Props) {
   return (
-    <div className="adv-panel adv-panel-text">
-      <div
-        className={`adv-columns${isTallLayout ? " adv-columns--tall" : " adv-columns--wide"}`}
-      >
-        {isTallLayout ? (
-          <div className="adv-col">
-            {mainSections}
-            {sequenceSection}
-          </div>
-        ) : (
-          <>
-            <div className="adv-col">{mainSections}</div>
-            <div className="adv-col adv-col--sequence">{sequenceSection}</div>
-          </>
-        )}
-      </div>
+    <div className="adv-panel adv-panel-text adv-panel--grid">
+      <ClickSpeedSection settings={settings} update={update} />
+      <HotkeySection settings={settings} update={update} />
+      <ClickerTypeSection settings={settings} update={update} />
+      <LimitsSection settings={settings} update={update} />
+      <DutyCycleSection settings={settings} update={update} />
+      <SpeedRandomizationSection settings={settings} update={update} />
     </div>
   );
 }
+
+export default AdvancedPanel;

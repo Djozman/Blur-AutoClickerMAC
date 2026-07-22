@@ -1,5 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
+  memo,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -7,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Tab } from "../App";
-import { translateStopReason, useTranslation, type TranslationKey } from "../i18n";
+
 import "./TitleBar.css";
 
 const appWindow = getCurrentWindow();
@@ -21,10 +23,11 @@ interface Props {
   tab: Tab;
   setTab: (t: Tab) => void;
   running: boolean;
-  stopReason?: string | null;
   isAlwaysOnTop: boolean;
   onToggleAlwaysOnTop: () => Promise<void>;
   onRequestClose: () => Promise<void>;
+  stopReason: string | null;
+  statusBarHidden: boolean;
 }
 
 type NavTab = Exclude<Tab, "settings">;
@@ -35,8 +38,10 @@ type TabIconProps = {
 
 type TabItem = {
   value: NavTab;
-  labelKey: TranslationKey;
+  label: string;
   color: string;
+  activeBg: string;
+  activeFocusRing: string;
   icon: (props: TabIconProps) => ReactNode;
 };
 
@@ -52,82 +57,190 @@ const DEFAULT_TITLE_STATE: TitleViewState = {
   isReason: false,
 };
 
+const STOP_REASON_TEXTS: Record<string, string> = {
+  "Stopped from UI": "Stopped",
+  "Stopped from toggle": "Stopped",
+  "Stopped from hotkey": "Stopped",
+  "Stopped from hold hotkey": "Stopped",
+  Stopped: "Stopped",
+  "Top-left corner failsafe": "Corner failsafe",
+  "Top-right corner failsafe": "Corner failsafe",
+  "Bottom-left corner failsafe": "Corner failsafe",
+  "Bottom-right corner failsafe": "Corner failsafe",
+  "Top edge failsafe": "Edge failsafe",
+  "Right edge failsafe": "Edge failsafe",
+  "Bottom edge failsafe": "Edge failsafe",
+  "Left edge failsafe": "Edge failsafe",
+  "Blocked by Alt+Tab": "Blocked by Alt+Tab",
+  "Blocked by process list": "Blocked by process list",
+};
+
+function translateStopReason(stopReason: string | null | undefined): string {
+  if (!stopReason) return "";
+  const staticText = STOP_REASON_TEXTS[stopReason];
+  if (staticText) return staticText;
+
+  const clickLimit = stopReason.match(/^Click limit reached \((.+)\)$/);
+  if (clickLimit) return "Click limit reached";
+
+  const timeLimit = stopReason.match(/^Time limit reached \((.+)\)$/);
+  if (timeLimit) return "Time limit reached";
+
+  return stopReason;
+}
+
+const SimpleIcon = memo(function SimpleIcon({ active }: TabIconProps) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={active ? "2.2" : "2"}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="7" y="3" width="10" height="18" rx="5" />
+      <path className="simple-bar" d="M12 7v4" />
+    </svg>
+  );
+});
+
+const AdvancedIcon = memo(function AdvancedIcon({ active }: TabIconProps) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={active ? "2.2" : "2"}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path className="adv-layer1" d="m12 3 9 4.5-9 4.5-9-4.5L12 3z" />
+      <path className="adv-layer2" d="m3 12.5 9 4.5 9-4.5" />
+      <path className="adv-layer3" d="m3 17.5 9 4.5 9-4.5" />
+    </svg>
+  );
+});
+
+const ZonesIcon = memo(function ZonesIcon({ active }: TabIconProps) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={active ? "2.2" : "2"}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="8" />
+    </svg>
+  );
+});
+
+const ClickPointsIcon = memo(function ClickPointsIcon({
+  active,
+}: TabIconProps) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={active ? "2.2" : "2"}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path className="cp-line1" d="M4 6h16" />
+      <path className="cp-line2" d="M4 12h12" />
+      <path className="cp-line3" d="M4 18h8" />
+      <circle
+        className="cp-dot1"
+        cx="20"
+        cy="12"
+        r="1.5"
+        fill="currentColor"
+        stroke="none"
+      />
+      <circle
+        className="cp-dot2"
+        cx="16"
+        cy="18"
+        r="1.5"
+        fill="currentColor"
+        stroke="none"
+      />
+    </svg>
+  );
+});
+
 const TAB_ITEMS: readonly TabItem[] = [
   {
     value: "simple",
-    labelKey: "titleBar.simple",
-    color: "var(--accent-green)",
-    icon: ({ active }) => (
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={active ? "2.2" : "2"}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <rect x="7" y="3" width="10" height="18" rx="5" />
-        <path d="M12 7v4" />
-      </svg>
-    ),
+    label: "Simple",
+    color: "var(--accent)",
+    activeBg: "var(--accent-soft)",
+    activeFocusRing: "var(--accent-ring)",
+    icon: ({ active }) => <SimpleIcon active={active} />,
   },
   {
     value: "advanced",
-    labelKey: "titleBar.advanced",
+    label: "Advanced",
     color: "var(--accent-yellow)",
-    icon: ({ active }) => (
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={active ? "2.2" : "2"}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d="m12 3 9 4.5-9 4.5-9-4.5L12 3z" />
-        <path d="m3 12.5 9 4.5 9-4.5" />
-        <path d="m3 17.5 9 4.5 9-4.5" />
-      </svg>
-    ),
+    activeBg: "rgba(254, 188, 47, 0.1)",
+    activeFocusRing: "rgba(254, 188, 47, 0.25)",
+    icon: ({ active }) => <AdvancedIcon active={active} />,
   },
   {
     value: "zones",
-    labelKey: "titleBar.zones",
+    label: "Zones",
     color: "hsl(208 85% 58%)",
-    icon: ({ active }) => (
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={active ? "2.2" : "2"}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <circle cx="12" cy="12" r="8" />
-      </svg>
-    ),
+    activeBg: "hsla(208, 85%, 58%, 0.14)",
+    activeFocusRing: "hsla(208, 85%, 58%, 0.35)",
+    icon: ({ active }) => <ZonesIcon active={active} />,
+  },
+  {
+    value: "click-points",
+    label: "Click Points",
+    color: "hsl(180 75% 40%)",
+    activeBg: "hsla(180, 75%, 40%, 0.14)",
+    activeFocusRing: "hsla(180, 75%, 40%, 0.35)",
+    icon: ({ active }) => <ClickPointsIcon active={active} />,
   },
 ] as const;
 
-export default function TitleBar({
+const TitleBar = memo(function TitleBar({
   tab,
   setTab,
   running,
-  stopReason,
   isAlwaysOnTop,
   onToggleAlwaysOnTop,
   onRequestClose,
+  stopReason,
+  statusBarHidden,
 }: Props) {
-  const { t } = useTranslation();
+  const setTabRef = useRef(setTab);
+  useEffect(() => {
+    setTabRef.current = setTab;
+  }, [setTab]);
+
+  const handleTabClick = useCallback((value: NavTab) => {
+    setTabRef.current(value);
+  }, []);
+
+  const handleSettingsClick = useCallback(() => {
+    setTabRef.current("settings");
+  }, []);
 
   return (
     <div
@@ -140,20 +253,21 @@ export default function TitleBar({
       }
       data-tauri-drag-region
       data-running={running}
+      data-tab={tab}
     >
       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
         <button
           className="settings-button"
           data-active={tab === "settings"}
-          onClick={() => setTab("settings")}
-          title={t("titleBar.settings")}
-          aria-label={t("titleBar.settings")}
+          onClick={handleSettingsClick}
+          title="Settings"
+          aria-label="Settings"
           style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
         >
           <svg
             className="settings-svg"
-            width="15"
-            height="15"
+            width="16"
+            height="16"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -171,10 +285,13 @@ export default function TitleBar({
             return (
               <TabIconButton
                 key={item.value}
-                label={t(item.labelKey)}
+                label={item.label}
                 active={isActive}
-                onClick={() => setTab(item.value)}
+                onClick={handleTabClick}
+                value={item.value}
                 color={item.color}
+                activeBg={item.activeBg}
+                activeFocusRing={item.activeFocusRing}
                 icon={item.icon({ active: isActive })}
               />
             );
@@ -183,7 +300,11 @@ export default function TitleBar({
       </div>
 
       <div className="title-wrapper">
-        <AnimatedTitle running={running} stopReason={stopReason} />
+        <AnimatedTitle
+          statusBarHidden={statusBarHidden}
+          stopReason={stopReason}
+          running={running}
+        />
       </div>
 
       <div
@@ -202,24 +323,25 @@ export default function TitleBar({
           }}
           active={isAlwaysOnTop}
           title={
-            isAlwaysOnTop
-              ? t("titleBar.disableAlwaysOnTop")
-              : t("titleBar.enableAlwaysOnTop")
+            isAlwaysOnTop ? "Disable Always on Top" : "Enable Always on Top"
           }
           label={
             <svg
+              xmlns="http://www.w3.org/2000/svg"
               width="16"
               height="16"
               viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+              fill="currentColor"
+              stroke="none"
+              className="lucide lucide-pin-icon lucide-pin"
             >
-              <path d="M8 4h8l-1.4 5.2h-5.2L8 4z" />
-              <path d="M6 9.2h12" />
-              <path d="M12 9.2v10.8" />
+              <path
+                className="pin-body"
+                d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"
+              />
+              <g className="pin-needle">
+                <path d="M-1 0h2v5H-1z" />
+              </g>
             </svg>
           }
         />
@@ -227,7 +349,7 @@ export default function TitleBar({
           onClick={() => {
             void handleMinimize();
           }}
-          title={t("titleBar.minimize")}
+          title="Minimize"
           label={
             <svg width="10" height="2" viewBox="0 0 10 2" fill="none">
               <rect width="10" height="2" fill="currentColor" />
@@ -239,7 +361,7 @@ export default function TitleBar({
             void onRequestClose();
           }}
           danger
-          title={t("titleBar.close")}
+          title="Close"
           label={
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <path
@@ -253,16 +375,21 @@ export default function TitleBar({
       </div>
     </div>
   );
-}
+});
 
 function AnimatedTitle({
-  running,
+  statusBarHidden,
   stopReason,
-}: Pick<Props, "running" | "stopReason">) {
+  running,
+}: {
+  statusBarHidden: boolean;
+  stopReason: string | null;
+  running: boolean;
+}) {
   const [titleState, setTitleState] = useState(DEFAULT_TITLE_STATE);
   const frameIdsRef = useRef<number[]>([]);
   const timeoutIdsRef = useRef<number[]>([]);
-  const { t } = useTranslation();
+  const lastShownStopReasonRef = useRef<string | null | undefined>(null);
 
   const clearScheduledWork = () => {
     frameIdsRef.current.forEach((id) => window.cancelAnimationFrame(id));
@@ -284,48 +411,49 @@ function AnimatedTitle({
   useEffect(() => {
     clearScheduledWork();
 
-    if (running || !stopReason) {
+    if (!statusBarHidden || !stopReason) {
+      lastShownStopReasonRef.current = null;
       queueFrame(() => {
         setTitleState(DEFAULT_TITLE_STATE);
       });
       return clearScheduledWork;
     }
 
+    if (running) {
+      lastShownStopReasonRef.current = null;
+      queueFrame(() => {
+        setTitleState(DEFAULT_TITLE_STATE);
+      });
+      return clearScheduledWork;
+    }
+
+    if (stopReason === lastShownStopReasonRef.current) {
+      return clearScheduledWork;
+    }
+
+    lastShownStopReasonRef.current = stopReason;
+
     queueFrame(() => {
-      setTitleState((current) => ({ ...current, flipClass: "flip-out" }));
-      queueDelay(() => {
-        setTitleState({
-          text: translateStopReason(stopReason, t),
-          isReason: true,
-          flipClass: "",
-        });
-
-        queueFrame(() => {
-          setTitleState((current) => ({ ...current, flipClass: "flip-in" }));
-          queueDelay(() => {
-            setTitleState((current) => ({ ...current, flipClass: "" }));
-          }, 350);
-        });
-
-        queueDelay(() => {
-          queueFrame(() => {
-            setTitleState((current) => ({ ...current, flipClass: "flip-out" }));
-            queueDelay(() => {
-              setTitleState(DEFAULT_TITLE_STATE);
-              queueFrame(() => {
-                setTitleState((current) => ({ ...current, flipClass: "flip-in" }));
-                queueDelay(() => {
-                  setTitleState((current) => ({ ...current, flipClass: "" }));
-                }, 350);
-              });
-            }, 350);
-          });
-        }, 5000);
-      }, 400);
+      setTitleState({
+        text: translateStopReason(stopReason),
+        isReason: true,
+        flipClass: "squish-in",
+      });
     });
+    queueDelay(() => {
+      setTitleState((current) => ({ ...current, flipClass: "" }));
+    }, 250);
+
+    queueDelay(() => {
+      setTitleState(DEFAULT_TITLE_STATE);
+      setTitleState((current) => ({ ...current, flipClass: "squish-in" }));
+      queueDelay(() => {
+        setTitleState((current) => ({ ...current, flipClass: "" }));
+      }, 250);
+    }, 5000);
 
     return clearScheduledWork;
-  }, [running, stopReason, t]);
+  }, [statusBarHidden, stopReason, running]);
 
   return (
     <span
@@ -336,29 +464,57 @@ function AnimatedTitle({
   );
 }
 
-function TabIconButton({
+const TabIconButton = memo(function TabIconButton({
   icon,
   label,
   active,
   onClick,
+  value,
   color,
+  activeBg,
+  activeFocusRing,
 }: {
   icon: ReactNode;
   label: string;
   active: boolean;
-  onClick: () => void;
+  onClick: (value: NavTab) => void;
+  value: NavTab;
   color: string;
+  activeBg: string;
+  activeFocusRing: string;
 }) {
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const handleMouseEnter = () => {
+    if (Math.random() < 0.1) {
+      const el = btnRef.current;
+      if (!el) return;
+      el.classList.remove("tab-icon-btn--animate");
+      void el.offsetWidth;
+      el.classList.add("tab-icon-btn--animate");
+    }
+  };
+
+  const handleAnimationEnd = () => {
+    btnRef.current?.classList.remove("tab-icon-btn--animate");
+  };
+
   return (
     <button
+      ref={btnRef}
       onMouseDown={(e) => e.stopPropagation()}
-      onClick={onClick}
+      onClick={() => onClick(value)}
+      onMouseEnter={handleMouseEnter}
+      onAnimationEnd={handleAnimationEnd}
       className={`tab-icon-btn ${active ? "active" : ""}`}
       aria-label={label}
       title={label}
+      data-tab={value}
       style={
         {
           "--active-color": color,
+          "--active-bg": activeBg,
+          "--active-focus-ring": activeFocusRing,
           WebkitAppRegion: "no-drag",
         } as CSSProperties
       }
@@ -366,7 +522,9 @@ function TabIconButton({
       {icon}
     </button>
   );
-}
+});
+
+export default TitleBar;
 
 function WindowBtn({
   onClick,

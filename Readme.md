@@ -27,7 +27,9 @@
 - 📊 **Usage stats** — tracks total clicks, sessions, time, and CPU usage across all runs
 - ⌨️ **Global hotkeys** — start/stop without switching windows
 - 🚀 **Launch at login** — optional autostart via macOS LaunchAgent
+- 🖥️ **Process list** — switch or stop behavior when configured apps take focus
 - 🔔 **Auto-updater** — get notified and update in-app
+- 📜 **In-app changelog** — view release notes from the settings panel
 
 ---
 

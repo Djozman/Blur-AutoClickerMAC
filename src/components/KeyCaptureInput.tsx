@@ -4,13 +4,13 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type KeyboardEvent,
-  type MouseEvent,
 } from "react";
 import {
   captureHotkey,
+  captureModifierHotkey,
   formatHotkeyForDisplay,
   getKeyboardLayoutMap,
+  getStateClass,
 } from "../hotkeys";
 import { isAlphabeticKeyboardKey } from "../keyboardKeyCase";
 import type { KeyboardKeyCase, MouseButton } from "../store";
@@ -22,9 +22,8 @@ interface Props {
   style?: CSSProperties;
   keyboardKeyCase?: KeyboardKeyCase;
   onMouseButtonCapture?: (button: MouseButton) => void;
+  conflicts?: string[];
 }
-
-const MODIFIER_KEYS = new Set(["Control", "Shift", "Alt", "Meta"]);
 
 function applyKeyboardKeyCase(
   value: string,
@@ -47,12 +46,19 @@ export default function KeyCaptureInput({
   style,
   keyboardKeyCase,
   onMouseButtonCapture,
+  conflicts,
 }: Props) {
   const [listening, setListening] = useState(false);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const rightClickStartedWhileListeningRef = useRef(false);
+  const inputRef = useRef<HTMLButtonElement | null>(null);
   const [layoutMap, setLayoutMap] =
     useState<Awaited<ReturnType<typeof getKeyboardLayoutMap>>>(null);
+  const onChangeRef = useRef(onChange);
+  const onMouseButtonCaptureRef = useRef(onMouseButtonCapture);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    onMouseButtonCaptureRef.current = onMouseButtonCapture;
+  });
 
   useEffect(() => {
     let active = true;
@@ -65,7 +71,7 @@ export default function KeyCaptureInput({
   }, []);
 
   const displayText = useMemo(() => {
-    if (listening) return "Press a key...";
+    if (listening) return "Press a key\u2026";
     if (!value) return "Select key";
     return applyKeyboardKeyCase(
       value,
@@ -74,94 +80,117 @@ export default function KeyCaptureInput({
     );
   }, [keyboardKeyCase, layoutMap, listening, value]);
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
+  useEffect(() => {
+    if (!listening) return;
 
-    if (event.key === "Escape") {
+    const finishCapture = (nextValue?: string) => {
+      if (nextValue !== undefined) {
+        onChangeRef.current(nextValue);
+      }
       setListening(false);
-      event.currentTarget.blur();
-      return;
-    }
+      inputRef.current?.blur();
+    };
 
-    if (
-      (event.key === "Backspace" || event.key === "Delete") &&
-      !event.ctrlKey &&
-      !event.altKey &&
-      !event.shiftKey &&
-      !event.metaKey
-    ) {
-      onChange("");
-      setListening(false);
-      event.currentTarget.blur();
-      return;
-    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat) return;
 
-    if (MODIFIER_KEYS.has(event.key)) return;
-
-    const captured = captureHotkey({
-      key: event.key,
-      code: event.code,
-      location: event.location,
-      ctrlKey: false,
-      altKey: false,
-      shiftKey: false,
-      metaKey: false,
-    });
-
-    if (captured) {
-      const mainKey = captured.split("+").pop() ?? captured;
-      onChange(mainKey);
-      setListening(false);
-      event.currentTarget.blur();
-    }
-  };
-
-  const handleMouseDown = (event: MouseEvent<HTMLInputElement>) => {
-    if (event.button !== 2) return;
-
-    rightClickStartedWhileListeningRef.current = listening;
-    if (!listening) {
       event.preventDefault();
-    }
-  };
+      event.stopPropagation();
 
-  const handleContextMenu = (event: MouseEvent<HTMLInputElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
+      const modifierHit = captureModifierHotkey(event);
+      if (modifierHit) {
+        finishCapture(modifierHit);
+        return;
+      }
 
-    if (rightClickStartedWhileListeningRef.current) {
-      onMouseButtonCapture?.("Right");
-      setListening(false);
-      inputRef.current?.blur();
-    } else {
-      onChange("");
-      setListening(false);
-      inputRef.current?.blur();
-    }
+      if (event.key === "Escape" || event.code === "Escape") {
+        finishCapture("escape");
+        return;
+      }
 
-    rightClickStartedWhileListeningRef.current = false;
-  };
+      if (event.key === "Backspace") {
+        finishCapture("backspace");
+        return;
+      }
+
+      if (event.key === "Delete") {
+        finishCapture("delete");
+        return;
+      }
+
+      const captured = captureHotkey({
+        key: event.key,
+        code: event.code,
+        location: event.location,
+        ctrlKey: false,
+        altKey: false,
+        shiftKey: false,
+        metaKey: false,
+      });
+
+      if (captured) {
+        const mainKey = captured.split("+").pop() ?? captured;
+        finishCapture(mainKey);
+      }
+    };
+
+    const handleContextMenu = (event: MouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      onMouseButtonCaptureRef.current?.("Right");
+      finishCapture();
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    window.addEventListener("contextmenu", handleContextMenu, true);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener("contextmenu", handleContextMenu, true);
+    };
+  }, [listening]);
+
+  const hasConflict = conflicts !== undefined && conflicts.length > 0;
+  const stateClass = getStateClass(listening, hasConflict, !!value);
 
   return (
-    <input
-      ref={inputRef}
-      type="text"
-      className={className}
-      value={displayText}
-      readOnly
-      onMouseDown={handleMouseDown}
-      onFocus={() => setListening(true)}
-      onBlur={() => setListening(false)}
-      onKeyDown={handleKeyDown}
-      onContextMenu={handleContextMenu}
-      spellCheck={false}
-      title="Right click input to clear"
-      style={{
-        cursor: "pointer",
-        textAlign: "center",
-        ...style,
-      }}
-    />
+    <div className={`hk-wrapper ${stateClass}`}>
+      <button
+        ref={inputRef}
+        type="button"
+        className={`${className ?? ""} hk-button`}
+        style={{
+          ...style,
+          paddingRight: value && !listening ? "1.25rem" : undefined,
+        }}
+        onClick={() => {
+          setListening(true);
+        }}
+        onBlur={() => {
+          if (listening) {
+            setListening(false);
+          }
+        }}
+        title={
+          hasConflict ? `Already bound to: ${conflicts!.join(", ")}` : undefined
+        }
+      >
+        {displayText}
+      </button>
+      {value && !listening && (
+        <button
+          type="button"
+          className="hk-clear-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            onChange("");
+          }}
+          title="Clear key"
+        >
+          ×
+        </button>
+      )}
+    </div>
   );
 }

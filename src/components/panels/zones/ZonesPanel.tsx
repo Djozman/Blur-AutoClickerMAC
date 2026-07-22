@@ -1,10 +1,8 @@
-import "../advanced/AdvancedPanel.css";
+import "../advanced/sections/shared.css";
+import "./ZonesPanel.css";
 import type { Settings } from "../../../store";
-import FailsafeSection from "./FailsafeSection";
-import CustomStopZoneSection from "./CustomStopZoneSection";
-
-// TODO: This still entirely needs to get done. I've just moved everything over here. If you are a back end dev, please be careful changing UI things xD
-// TODO: Custom Stop zones should be like Sequence clicking where you can add as many as you want in a list.
+import FailsafeSection from "./sections/FailsafeSection";
+import StopZonesSection from "./sections/StopZonesSection";
 
 interface Props {
   settings: Settings;
@@ -12,25 +10,23 @@ interface Props {
   showInfo: boolean;
 }
 
-export default function ZonesPanel({ settings, update, showInfo }: Props) {
+function ZonesPanel({ settings, update, showInfo }: Props) {
   return (
-    <div className="adv-panel adv-panel-text">
-      <div className="adv-row">
+    <div className="adv-panel adv-panel-text adv-panel--zones">
+      <div className="adv-zones-row">
         <FailsafeSection
           settings={settings}
           update={update}
           showInfo={showInfo}
         />
       </div>
-      <div className="adv-columns">
-        <div className="adv-col">
-          <CustomStopZoneSection
-            settings={settings}
-            update={update}
-            showInfo={showInfo}
-          />
-        </div>
-      </div>
+      <StopZonesSection
+        settings={settings}
+        update={update}
+        showInfo={showInfo}
+      />
     </div>
   );
 }
+
+export default ZonesPanel;

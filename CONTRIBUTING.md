@@ -46,17 +46,13 @@ npm run build
 
 ## Validation
 
-Run the relevant local checks before opening a pull request:
+Run all checks before opening a pull request:
 
 ```powershell
-npm run lint
-npm run frontend:build
-cargo fmt --manifest-path src-tauri/Cargo.toml --check
-cargo check --manifest-path src-tauri/Cargo.toml --locked
-cargo test --manifest-path src-tauri/Cargo.toml --locked
+npm run check:all
 ```
 
-Include the exact commands you ran in the pull request description.
+This runs all these automatically — cargo test, npm test, ESLint, Prettier, frontend type check and build, cargo check, cargo clippy, cargo fmt, and npm audit.
 
 ## Branches and pull requests
 
@@ -64,6 +60,10 @@ Include the exact commands you ran in the pull request description.
 - Keep pull requests small enough to review comfortably.
 - Link the related issue when there is one, or write `N/A`.
 - Use the issue forms before opening a new issue.
+
+## Questions
+
+If you have questions or get stuck, join the [Discord server](https://discord.gg/jhWEW747x5).
 
 ## Generated files
 

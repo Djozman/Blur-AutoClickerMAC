@@ -48,6 +48,9 @@ struct PickerRuntime {
     thread_id: u32,
 }
 
+unsafe impl Send for PickerRuntime {}
+unsafe impl Sync for PickerRuntime {}
+
 static PICKER: OnceLock<Mutex<PickerRuntime>> = OnceLock::new();
 
 fn picker() -> &'static Mutex<PickerRuntime> {
@@ -110,7 +113,7 @@ mod platform {
         l_param: LPARAM,
     ) -> LRESULT {
         if code < 0 {
-            return CallNextHookEx(0, code, w_param, l_param);
+            return CallNextHookEx(std::ptr::null_mut(), code, w_param, l_param);
         }
 
         let message = w_param as u32;
@@ -138,7 +141,7 @@ mod platform {
                         }
                     }
                 }
-                return CallNextHookEx(0, code, w_param, l_param);
+                return CallNextHookEx(std::ptr::null_mut(), code, w_param, l_param);
             }
 
             match classify_mouse_message(message, drawing) {
@@ -173,7 +176,7 @@ mod platform {
             }
         }
 
-        CallNextHookEx(0, code, w_param, l_param)
+        CallNextHookEx(std::ptr::null_mut(), code, w_param, l_param)
     }
 
     unsafe extern "system" fn keyboard_hook_proc(
@@ -182,7 +185,7 @@ mod platform {
         l_param: LPARAM,
     ) -> LRESULT {
         if code < 0 {
-            return CallNextHookEx(0, code, w_param, l_param);
+            return CallNextHookEx(std::ptr::null_mut(), code, w_param, l_param);
         }
 
         let message = w_param as u32;
@@ -197,7 +200,7 @@ mod platform {
             return 1;
         }
 
-        CallNextHookEx(0, code, w_param, l_param)
+        CallNextHookEx(std::ptr::null_mut(), code, w_param, l_param)
     }
 
     pub fn start_hooks(app: &AppHandle) -> Result<(), String> {
@@ -206,13 +209,19 @@ mod platform {
 
         std::thread::spawn(move || unsafe {
             let thread_id = GetCurrentThreadId();
-            let mouse_hook = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), 0, 0);
-            if mouse_hook == 0 {
+            let mouse_hook =
+                SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), std::ptr::null_mut(), 0);
+            if mouse_hook.is_null() {
                 let _ = ready_tx.send(Err(String::from("Failed to install mouse hook")));
                 return;
             }
-            let keyboard_hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook_proc), 0, 0);
-            if keyboard_hook == 0 {
+            let keyboard_hook = SetWindowsHookExW(
+                WH_KEYBOARD_LL,
+                Some(keyboard_hook_proc),
+                std::ptr::null_mut(),
+                0,
+            );
+            if keyboard_hook.is_null() {
                 UnhookWindowsHookEx(mouse_hook);
                 let _ = ready_tx.send(Err(String::from("Failed to install keyboard hook")));
                 return;
@@ -225,7 +234,7 @@ mod platform {
             }
             let _ = ready_tx.send(Ok(()));
             let mut msg = std::mem::zeroed::<MSG>();
-            while GetMessageW(&mut msg, 0, 0, 0) > 0 {}
+            while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {}
             UnhookWindowsHookEx(mouse_hook);
             UnhookWindowsHookEx(keyboard_hook);
         });
@@ -487,12 +496,12 @@ mod platform {
 // ── Public API ─────────────────────────────────────────────────────────────────
 
 pub fn start_custom_stop_zone_pick_inner(app: AppHandle) -> Result<(), String> {
-    crate::sequence_picker::cancel_sequence_point_pick_inner(&app);
+    crate::click_point_picker::cancel_click_point_pick_inner(&app);
 
     {
         let mut runtime = picker().lock().unwrap();
         if runtime.active {
-            crate::overlay::show_custom_stop_zone_pick_overlay(&app)?;
+            crate::overlay::show_custom_stop_zone_pick_overlay(&app).map_err(|e| e.to_string())?;
             return Ok(());
         }
         runtime.active = true;
@@ -505,7 +514,7 @@ pub fn start_custom_stop_zone_pick_inner(app: AppHandle) -> Result<(), String> {
         .custom_stop_zone_pick_active
         .store(true, Ordering::SeqCst);
 
-    crate::overlay::show_custom_stop_zone_pick_overlay(&app)?;
+    crate::overlay::show_custom_stop_zone_pick_overlay(&app).map_err(|e| e.to_string())?;
 
     #[cfg(target_os = "macos")]
     {
@@ -542,6 +551,6 @@ fn finish_custom_stop_zone_pick(rect: StopZoneRect) {
     let app = platform::stop_hooks(true);
     if let Some(app) = app {
         let _ = app.emit("custom-stop-zone-picked", rect);
-        let _ = crate::overlay::end_custom_stop_zone_pick_overlay(&app);
+        let _ = crate::overlay::hide_custom_stop_zone_pick_overlay(&app);
     }
 }
